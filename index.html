@@ -38,6 +38,7 @@
 
   .toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
   button.primary,button.ghost{font-size:13px;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600;border:1px solid var(--line);}
+  button.small{padding:5px 9px;font-size:12px;}
   button.primary{background:var(--amber);color:#1a1509;border-color:var(--amber);}
   button.primary:hover{filter:brightness(1.08);}
   button.ghost{background:transparent;color:var(--text);}
@@ -151,10 +152,8 @@
     <button class="ghost" id="btnFulfill">Reserve / Ship</button>
     <button class="ghost" id="btnLoss">Record Testing/Sampling Loss</button>
     <button class="ghost" id="btnBatch">Batches / Barcodes</button>
-    <button class="ghost" id="btnFillBatch" style="display:none;">Fill New Batch</button>
-    <button class="ghost" id="btnBatchLoss" style="display:none;">Record Test/Waste Loss</button>
-    <button class="ghost" id="btnBatchAdvance" style="display:none;">Advance Batch</button>
-    <button class="ghost" id="btnQcLabel" style="display:none;">QC Label</button>
+    <button class="ghost" id="btnAdvanceProduction" style="display:none;">Advance Production</button>
+    <button class="ghost" id="btnFulfillment" style="display:none;">Fulfillment</button>
     <button class="ghost" id="btnAdmin" style="display:none;border-color:var(--rust);color:var(--rust);">Admin</button>
   </div>
 
@@ -188,6 +187,19 @@
   <section class="block" id="batchListSection" style="display:none;">
     <h2 class="head">Batches</h2>
     <div class="tblwrap"><table id="batchListTable"><thead><tr><th>Batch Code</th><th>Flavor</th><th>Fill</th><th>Package</th><th>Inventory</th><th>Reserved</th><th>Shipped</th><th>Test Loss</th><th>Waste Loss</th><th>Created</th></tr></thead><tbody id="batchListBody"></tbody></table></div>
+  </section>
+
+  <section class="block" id="distributionSection" style="display:none;">
+    <h2 class="head">Distribution</h2>
+
+    <h3 style="font-size:12.5px;color:var(--dim);margin:14px 0 8px;">Pending Orders — need QC & Labeling</h3>
+    <div class="tblwrap"><table id="pendingOrdersTable"><thead><tr><th>Order</th><th>Units Reserved</th><th>Created</th><th></th></tr></thead><tbody id="pendingOrdersBody"></tbody></table></div>
+
+    <h3 style="font-size:12.5px;color:var(--dim);margin:18px 0 8px;">Available for Distribution — passed QC & Labeling, needs manifest</h3>
+    <div class="tblwrap"><table id="distOrdersTable"><thead><tr><th>Order</th><th>Units</th><th>Displays Used</th><th>Cases Used</th><th>QC By</th><th></th></tr></thead><tbody id="distOrdersBody"></tbody></table></div>
+
+    <h3 style="font-size:12.5px;color:var(--dim);margin:18px 0 8px;">Shipped — history</h3>
+    <div class="tblwrap"><table id="shippedOrdersTable"><thead><tr><th>Order</th><th>Units</th><th>Manifest #</th><th>Manifest Date</th><th>Shipped By</th></tr></thead><tbody id="shippedOrdersBody"></tbody></table></div>
   </section>
 
   <section class="block" id="logSection">
@@ -342,50 +354,59 @@
 </div></div>
 
 
-<div class="overlay" id="modalFillBatch"><div class="modal">
-  <h3>Fill New Batch</h3>
-  <div class="field"><label>Flavor</label><select id="fbFlavor"></select></div>
-  <div class="field"><label>Quantity (units)</label><input id="fbQty" type="number" min="1"></div>
-  <div class="hint" id="fbHint"></div>
-  <div class="field"><label>Notes (optional)</label><input id="fbNotes"></div>
-  <div class="err" id="fbErr"></div>
-  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalFillBatch')">Cancel</button><button class="primary" onclick="submitFillBatch()">Fill Batch</button></div>
+<div class="overlay" id="modalAdvanceProduction"><div class="modal">
+  <h3>Advance Production</h3>
+  <div class="field"><label>Action</label>
+    <select id="apAction">
+      <option value="fill">Fill (start new batch)</option>
+      <option value="test">Test Loss</option>
+      <option value="package">Package</option>
+      <option value="waste">Waste Loss</option>
+      <option value="release">Release to Inventory</option>
+    </select>
+  </div>
+  <div class="field" id="apFlavorWrap"><label>Flavor</label><select id="apFlavor"></select></div>
+  <div class="field" id="apBatchWrap" style="display:none;"><label>Batch</label><select id="apBatch"></select></div>
+  <div class="hint" id="apHint"></div>
+  <div class="field"><label>Quantity (units)</label><input id="apQty" type="number" min="1"></div>
+  <div class="field" id="apReasonWrap" style="display:none;"><label>Reason</label><input id="apReason" placeholder="e.g. QC sample, damaged in fill"></div>
+  <div class="field" id="apNotesWrap"><label>Notes (optional)</label><input id="apNotes"></div>
+  <div class="err" id="apErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAdvanceProduction')">Cancel</button><button class="primary" onclick="submitAdvanceProduction()">Log</button></div>
 </div></div>
 
-<div class="overlay" id="modalBatchLoss"><div class="modal">
-  <h3>Record Test/Waste Loss</h3>
-  <div class="field"><label>Batch</label><select id="blBatch"></select></div>
-  <div class="field"><label>Stage</label><select id="blStage"><option value="fill">Fill</option><option value="package">Package</option></select></div>
-  <div class="hint" id="blHint"></div>
-  <div class="field"><label>Type</label><select id="blType"><option value="test">Test</option><option value="waste">Waste</option></select></div>
-  <div class="field"><label>Quantity</label><input id="blQty" type="number" min="1"></div>
-  <div class="field"><label>Reason</label><input id="blReason" placeholder="e.g. QC sample, damaged in fill"></div>
-  <div class="err" id="blErr"></div>
-  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalBatchLoss')">Cancel</button><button class="primary" onclick="submitBatchLoss()">Record</button></div>
+<div class="overlay" id="modalFulfillment"><div class="modal">
+  <h3>Fulfillment</h3>
+  <div class="hint" style="margin-bottom:10px;">Reserve units from a batch into a pending order. An order can draw from multiple batches — use the same order name/number each time to add to it.</div>
+  <div class="field"><label>Batch (must have Inventory units)</label><select id="fuBatch"></select></div>
+  <div class="hint" id="fuHint"></div>
+  <div class="field"><label>Order Name / Number</label><input id="fuOrderRef" placeholder="e.g. Order #8821 (existing or new)"></div>
+  <div class="field"><label>Quantity (units)</label><input id="fuQtyUnits" type="number" min="1"></div>
+  <div class="err" id="fuErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalFulfillment')">Cancel</button><button class="primary" onclick="submitFulfillment()">Reserve to Order</button></div>
 </div></div>
 
-<div class="overlay" id="modalBatchAdvance"><div class="modal">
-  <h3>Advance Batch</h3>
-  <div class="field"><label>Batch</label><select id="baBatch"></select></div>
-  <div class="field"><label>Move</label><select id="baMove"></select></div>
-  <div class="hint" id="baHint"></div>
-  <div class="field"><label>Quantity</label><input id="baQty" type="number" min="1"></div>
-  <div class="err" id="baErr"></div>
-  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalBatchAdvance')">Cancel</button><button class="primary" onclick="submitBatchAdvance()">Move</button></div>
+<div class="overlay" id="modalOrderQc"><div class="modal">
+  <h3>QC & Labeling</h3>
+  <div class="hint" style="margin-bottom:10px;" id="oqOrderName"></div>
+  <div class="field"><label>Units placed in Displays</label><input id="oqUnitsDisplay" type="number" min="0" value="0"></div>
+  <div class="field"><label>Displays Used</label><input id="oqDisplaysUsed" type="number" min="0" value="0"></div>
+  <div class="field"><label>Units placed in Master Cases</label><input id="oqUnitsCase" type="number" min="0" value="0"></div>
+  <div class="field"><label>Master Cases Used</label><input id="oqCasesUsed" type="number" min="0" value="0"></div>
+  <div class="err" id="oqErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalOrderQc')">Cancel</button><button class="primary" onclick="submitOrderQc()">Mark Ready for Distribution</button></div>
 </div></div>
 
-<div class="overlay" id="modalQcLabel"><div class="modal">
-  <h3>QC Label</h3>
-  <div class="hint" style="margin-bottom:10px;">Record how this batch's reserved units were grouped into Displays and Master Cases. This is a label/record only — it does not change the unit count.</div>
-  <div class="field"><label>Batch (must have Reserved units)</label><select id="qlBatch"></select></div>
-  <div class="hint" id="qlHint"></div>
-  <div class="field"><label>Units placed in Displays</label><input id="qlUnitsDisplay" type="number" min="0" value="0"></div>
-  <div class="field"><label>Displays Used</label><input id="qlDisplaysUsed" type="number" min="0" value="0"></div>
-  <div class="field"><label>Units placed in Master Cases</label><input id="qlUnitsCase" type="number" min="0" value="0"></div>
-  <div class="field"><label>Master Cases Used</label><input id="qlCasesUsed" type="number" min="0" value="0"></div>
-  <div class="err" id="qlErr"></div>
-  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalQcLabel')">Cancel</button><button class="primary" onclick="submitQcLabel()">Save Label</button></div>
+<div class="overlay" id="modalManifest"><div class="modal">
+  <h3>Create Manifest &amp; Ship</h3>
+  <div class="hint" style="margin-bottom:10px;" id="mfOrderName"></div>
+  <div class="field"><label>Manifest Number</label><input id="mfNumber" placeholder="e.g. MAN-2026-0417"></div>
+  <div class="field"><label>Manifest Date</label><input id="mfDate" type="date"></div>
+  <div class="err" id="mfErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalManifest')">Cancel</button><button class="primary" onclick="submitManifest()">Ship Out</button></div>
 </div></div>
+
+
 
 <script>
 const SUPABASE_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
@@ -546,9 +567,9 @@ async function render(){
 
   const isBatch = pl().batchModel;
   ['stageSection','sellSection','packSection'].forEach(id=> document.getElementById(id).style.display = isBatch ? 'none' : '');
-  ['batchFlavorTotalsSection','batchListSection'].forEach(id=> document.getElementById(id).style.display = isBatch ? '' : 'none');
+  ['batchFlavorTotalsSection','batchListSection','distributionSection'].forEach(id=> document.getElementById(id).style.display = isBatch ? '' : 'none');
   ['btnAdvance','btnPack','btnFulfill','btnLoss'].forEach(id=> document.getElementById(id).style.display = isBatch ? 'none' : 'inline-block');
-  ['btnFillBatch','btnBatchLoss','btnBatchAdvance','btnQcLabel'].forEach(id=> document.getElementById(id).style.display = isBatch ? 'inline-block' : 'none');
+  ['btnAdvanceProduction','btnFulfillment'].forEach(id=> document.getElementById(id).style.display = isBatch ? 'inline-block' : 'none');
 
   renderSharedStrip();
   renderCompTable();
@@ -559,6 +580,8 @@ async function render(){
     document.getElementById('backlogPanel').innerHTML = '';
     await fetchBatchData(currentLine);
     renderBatchTables();
+    await fetchOrders(currentLine);
+    await renderDistributionTables();
   } else {
     renderBacklog();
     renderStageTable();
@@ -609,140 +632,216 @@ function renderBatchTables(){
 }
 function batchLabel(b){ return `${b.batch_code} — ${b.flavorName}`; }
 
-document.getElementById('btnFillBatch').onclick = ()=>{
-  if(lineData.flavors.length===0){ alert('Add a flavor first.'); return; }
-  document.getElementById('fbFlavor').innerHTML = lineData.flavors.map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('');
-  document.getElementById('fbQty').value=''; document.getElementById('fbNotes').value=''; document.getElementById('fbErr').classList.remove('show');
-  updateFillBatchHint();
-  openModal('modalFillBatch');
+// ---------- ADVANCE PRODUCTION (Fill -> Test -> Package -> Waste -> Release to Inventory), consolidated ----------
+document.getElementById('btnAdvanceProduction').onclick = ()=>{
+  document.getElementById('apQty').value=''; document.getElementById('apNotes').value=''; document.getElementById('apReason').value='';
+  document.getElementById('apErr').classList.remove('show');
+  updateApAction();
+  openModal('modalAdvanceProduction');
 };
-document.getElementById('fbFlavor').addEventListener('change', updateFillBatchHint);
-function updateFillBatchHint(){
-  const flId = document.getElementById('fbFlavor').value;
-  document.getElementById('fbHint').textContent = `Hardware on hand: ${fmt(getComp(flId,'hardware'))}`;
-}
-async function submitFillBatch(){
-  const line = pl(); const flId = document.getElementById('fbFlavor').value;
-  const qty = parseInt(document.getElementById('fbQty').value,10);
-  const notes = document.getElementById('fbNotes').value.trim();
-  const errEl = document.getElementById('fbErr');
-  if(!flId){ errEl.textContent='Choose a flavor.'; errEl.classList.add('show'); return; }
-  if(!qty || qty<=0){ errEl.textContent='Enter a quantity greater than 0.'; errEl.classList.add('show'); return; }
-  const fl = lineData.flavors.find(f=>f.id===flId);
-  const flavorCode = (fl.code || initials(fl.name)).toUpperCase();
-  const { data, error } = await sb.rpc('mi_batch_fill', {
-    p_token: session.token, p_line: currentLine, p_flavor: flId,
-    p_line_code: line.batchCode, p_flavor_code: flavorCode, p_qty: qty, p_notes: notes, p_by: session.name
-  });
-  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
-  errEl.classList.remove('show');
-  await fetchLineData(currentLine); await fetchBatchData(currentLine); render(); closeModal('modalFillBatch');
-  showBatchResult(data, `${qty} units — FILL`);
-}
-
-document.getElementById('btnBatchLoss').onclick = ()=>{
-  if(batchLineData.batches.length===0){ alert('No batches yet.'); return; }
-  populateBatchLossSelect(); document.getElementById('blQty').value=''; document.getElementById('blReason').value=''; document.getElementById('blErr').classList.remove('show');
-  openModal('modalBatchLoss');
-};
-document.getElementById('blBatch').addEventListener('change', updateBatchLossHint);
-document.getElementById('blStage').addEventListener('change', updateBatchLossHint);
-function populateBatchLossSelect(){
-  document.getElementById('blBatch').innerHTML = batchLineData.batches.map(b=>`<option value="${b.batch_code}">${escapeHtml(batchLabel(b))}</option>`).join('');
-  updateBatchLossHint();
-}
-function updateBatchLossHint(){
-  const code = document.getElementById('blBatch').value; const stage = document.getElementById('blStage').value;
-  const b = batchLineData.batches.find(x=>x.batch_code===code);
-  document.getElementById('blHint').textContent = b ? `Available at ${stage}: ${fmt(stage==='fill'?b.fill_qty:b.package_qty)}` : '';
-}
-async function submitBatchLoss(){
-  const code = document.getElementById('blBatch').value; const stage = document.getElementById('blStage').value;
-  const type = document.getElementById('blType').value;
-  const qty = parseInt(document.getElementById('blQty').value,10);
-  const reason = document.getElementById('blReason').value.trim();
-  const errEl = document.getElementById('blErr');
-  if(!qty || qty<=0){ errEl.textContent='Enter a quantity greater than 0.'; errEl.classList.add('show'); return; }
-  if(!reason){ errEl.textContent='Enter a reason.'; errEl.classList.add('show'); return; }
-  const { error } = await sb.rpc('mi_batch_record_loss', { p_token: session.token, p_batch_code: code, p_stage: stage, p_loss_type: type, p_qty: qty, p_reason: reason, p_by: session.name });
-  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
-  errEl.classList.remove('show');
-  await fetchBatchData(currentLine); renderBatchTables(); renderLog(); closeModal('modalBatchLoss');
-}
-
-const BATCH_MOVES = [
-  {id:'fill_to_package', from:'fill', to:'package', label:'Fill → Package (consumes Insert + Packaging)'},
-  {id:'package_to_inventory', from:'package', to:'inventory', label:'Package → Inventory'},
-  {id:'inventory_to_reserved', from:'inventory', to:'reserved', label:'Inventory → Reserve for Order'},
-  {id:'reserved_to_shipped', from:'reserved', to:'shipped', label:'Reserved → Shipped Out'}
-];
-document.getElementById('btnBatchAdvance').onclick = ()=>{
-  if(batchLineData.batches.length===0){ alert('No batches yet.'); return; }
-  document.getElementById('baMove').innerHTML = BATCH_MOVES.map(m=>`<option value="${m.id}">${escapeHtml(m.label)}</option>`).join('');
-  populateBatchAdvanceSelect(); document.getElementById('baQty').value=''; document.getElementById('baErr').classList.remove('show');
-  openModal('modalBatchAdvance');
-};
-document.getElementById('baBatch').addEventListener('change', updateBatchAdvanceHint);
-document.getElementById('baMove').addEventListener('change', updateBatchAdvanceHint);
-function populateBatchAdvanceSelect(){
-  document.getElementById('baBatch').innerHTML = batchLineData.batches.map(b=>`<option value="${b.batch_code}">${escapeHtml(batchLabel(b))}</option>`).join('');
-  updateBatchAdvanceHint();
-}
-function updateBatchAdvanceHint(){
-  const code = document.getElementById('baBatch').value; const moveId = document.getElementById('baMove').value;
-  const move = BATCH_MOVES.find(m=>m.id===moveId);
-  const b = batchLineData.batches.find(x=>x.batch_code===code);
-  if(!b || !move){ document.getElementById('baHint').textContent=''; return; }
-  const avail = b[move.from+'_qty'];
-  document.getElementById('baHint').textContent = `Available at ${move.from}: ${fmt(avail)}`;
-}
-async function submitBatchAdvance(){
-  const line = pl(); const code = document.getElementById('baBatch').value; const moveId = document.getElementById('baMove').value;
-  const qty = parseInt(document.getElementById('baQty').value,10);
-  const errEl = document.getElementById('baErr');
-  const move = BATCH_MOVES.find(m=>m.id===moveId);
-  if(!qty || qty<=0){ errEl.textContent='Enter a quantity greater than 0.'; errEl.classList.add('show'); return; }
-  const b = batchLineData.batches.find(x=>x.batch_code===code);
-  let consumes = [];
-  if(move.id==='fill_to_package'){
-    const packStage = line.stages.find(s=>s.id==='pack');
-    consumes = packStage.consumesComp.map(cc=>({comp:cc.comp, qty:cc.qty, shared: compDef(currentLine,cc.comp).scope==='shared'}));
+document.getElementById('apAction').addEventListener('change', updateApAction);
+document.getElementById('apFlavor').addEventListener('change', updateApHint);
+document.getElementById('apBatch').addEventListener('change', updateApHint);
+function updateApAction(){
+  const action = document.getElementById('apAction').value;
+  document.getElementById('apFlavorWrap').style.display = action==='fill' ? 'block' : 'none';
+  document.getElementById('apBatchWrap').style.display = action==='fill' ? 'none' : 'block';
+  document.getElementById('apReasonWrap').style.display = (action==='test'||action==='waste') ? 'block' : 'none';
+  document.getElementById('apNotesWrap').style.display = action==='fill' ? 'block' : 'none';
+  if(action==='fill'){
+    document.getElementById('apFlavor').innerHTML = lineData.flavors.map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('') || '<option value="">Add a flavor first</option>';
+  } else {
+    const eligible = batchLineData.batches.filter(b=>{
+      if(action==='test') return b.fill_qty>0;
+      if(action==='package') return b.fill_qty>0;
+      if(action==='waste') return b.package_qty>0;
+      if(action==='release') return b.package_qty>0;
+      return false;
+    });
+    document.getElementById('apBatch').innerHTML = eligible.map(b=>`<option value="${b.batch_code}">${escapeHtml(batchLabel(b))}</option>`).join('') || '<option value="">No eligible batches</option>';
   }
-  const { error } = await sb.rpc('mi_batch_advance', { p_token: session.token, p_batch_code: code, p_from_stage: move.from, p_to_stage: move.to, p_qty: qty, p_consumes: consumes, p_by: session.name });
-  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
-  errEl.classList.remove('show');
-  await fetchLineData(currentLine); await fetchBatchData(currentLine); renderBatchTables(); renderCompTable(); renderLog(); closeModal('modalBatchAdvance');
-  if(b) await autoGenerateBatch(line, {id:b.flavor_id, name:b.flavorName, code:null}, move.to==='package'?'PACK':move.to.toUpperCase(), qty);
+  updateApHint();
 }
-
-document.getElementById('btnQcLabel').onclick = ()=>{
-  const reserved = batchLineData.batches.filter(b=>b.reserved_qty>0);
-  if(reserved.length===0){ alert('No batches with reserved units yet.'); return; }
-  document.getElementById('qlBatch').innerHTML = reserved.map(b=>`<option value="${b.batch_code}">${escapeHtml(batchLabel(b))}</option>`).join('');
-  ['qlUnitsDisplay','qlDisplaysUsed','qlUnitsCase','qlCasesUsed'].forEach(id=>document.getElementById(id).value='0');
-  document.getElementById('qlErr').classList.remove('show');
-  updateQcLabelHint();
-  openModal('modalQcLabel');
-};
-document.getElementById('qlBatch').addEventListener('change', updateQcLabelHint);
-function updateQcLabelHint(){
-  const code = document.getElementById('qlBatch').value;
+function updateApHint(){
+  const action = document.getElementById('apAction').value;
+  const hint = document.getElementById('apHint');
+  if(action==='fill'){
+    const flId = document.getElementById('apFlavor').value;
+    hint.textContent = flId ? `Hardware on hand: ${fmt(getComp(flId,'hardware'))}` : '';
+    return;
+  }
+  const code = document.getElementById('apBatch').value;
   const b = batchLineData.batches.find(x=>x.batch_code===code);
-  document.getElementById('qlHint').textContent = b ? `Reserved units on this batch: ${fmt(b.reserved_qty)}` : '';
+  if(!b){ hint.textContent=''; return; }
+  if(action==='test') hint.textContent = `Available at Fill: ${fmt(b.fill_qty)}`;
+  else if(action==='package'){
+    const line = pl(); const packStage = line.stages.find(s=>s.id==='pack');
+    const parts = [`Available at Fill: ${fmt(b.fill_qty)}`];
+    packStage.consumesComp.forEach(cc=> parts.push(`${compDef(currentLine,cc.comp).label}: ${fmt(getComp(b.flavor_id,cc.comp))}`));
+    hint.textContent = parts.join(' · ');
+  }
+  else if(action==='waste') hint.textContent = `Available at Package: ${fmt(b.package_qty)}`;
+  else if(action==='release') hint.textContent = `Available at Package: ${fmt(b.package_qty)}`;
 }
-async function submitQcLabel(){
-  const code = document.getElementById('qlBatch').value;
-  const unitsDisplay = parseInt(document.getElementById('qlUnitsDisplay').value,10)||0;
-  const displaysUsed = parseInt(document.getElementById('qlDisplaysUsed').value,10)||0;
-  const unitsCase = parseInt(document.getElementById('qlUnitsCase').value,10)||0;
-  const casesUsed = parseInt(document.getElementById('qlCasesUsed').value,10)||0;
-  const errEl = document.getElementById('qlErr');
-  const { error } = await sb.rpc('mi_batch_qc_label', { p_token: session.token, p_batch_code: code, p_units_in_displays: unitsDisplay, p_displays_used: displaysUsed, p_units_in_cases: unitsCase, p_cases_used: casesUsed, p_by: session.name });
+async function submitAdvanceProduction(){
+  const line = pl(); const action = document.getElementById('apAction').value;
+  const qty = parseInt(document.getElementById('apQty').value,10);
+  const errEl = document.getElementById('apErr');
+  if(!qty || qty<=0){ errEl.textContent='Enter a quantity greater than 0.'; errEl.classList.add('show'); return; }
+
+  if(action==='fill'){
+    const flId = document.getElementById('apFlavor').value;
+    const notes = document.getElementById('apNotes').value.trim();
+    if(!flId){ errEl.textContent='Choose a flavor.'; errEl.classList.add('show'); return; }
+    const fl = lineData.flavors.find(f=>f.id===flId);
+    const flavorCode = (fl.code || initials(fl.name)).toUpperCase();
+    const { data, error } = await sb.rpc('mi_batch_fill', {
+      p_token: session.token, p_line: currentLine, p_flavor: flId,
+      p_line_code: line.batchCode, p_flavor_code: flavorCode, p_qty: qty, p_notes: notes, p_by: session.name
+    });
+    if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+    errEl.classList.remove('show');
+    await fetchLineData(currentLine); await fetchBatchData(currentLine); render(); closeModal('modalAdvanceProduction');
+    showBatchResult(data, `${qty} units — FILL`);
+    return;
+  }
+
+  const code = document.getElementById('apBatch').value;
+  if(!code){ errEl.textContent='Choose a batch.'; errEl.classList.add('show'); return; }
+  const b = batchLineData.batches.find(x=>x.batch_code===code);
+
+  if(action==='test' || action==='waste'){
+    const reason = document.getElementById('apReason').value.trim();
+    if(!reason){ errEl.textContent='Enter a reason.'; errEl.classList.add('show'); return; }
+    const stage = action==='test' ? 'fill' : 'package';
+    const { error } = await sb.rpc('mi_batch_record_loss', { p_token: session.token, p_batch_code: code, p_stage: stage, p_loss_type: action, p_qty: qty, p_reason: reason, p_by: session.name });
+    if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  } else if(action==='package'){
+    const packStage = line.stages.find(s=>s.id==='pack');
+    const consumes = packStage.consumesComp.map(cc=>({comp:cc.comp, qty:cc.qty, shared: compDef(currentLine,cc.comp).scope==='shared'}));
+    const { error } = await sb.rpc('mi_batch_advance', { p_token: session.token, p_batch_code: code, p_from_stage:'fill', p_to_stage:'package', p_qty: qty, p_consumes: consumes, p_by: session.name });
+    if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+    await autoGenerateBatch(line, {id:b.flavor_id, name:b.flavorName, code:null}, 'PACK', qty);
+  } else if(action==='release'){
+    const { error } = await sb.rpc('mi_batch_advance', { p_token: session.token, p_batch_code: code, p_from_stage:'package', p_to_stage:'inventory', p_qty: qty, p_consumes: [], p_by: session.name });
+    if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  }
+  errEl.classList.remove('show');
+  await fetchLineData(currentLine); await fetchBatchData(currentLine); renderBatchTables(); renderCompTable(); renderLog(); closeModal('modalAdvanceProduction');
+}
+function batchLabel(b){ return `${b.batch_code} — ${b.flavorName}`; }
+
+// ---------- FULFILLMENT (reserve inventory units to a pending order) ----------
+document.getElementById('btnFulfillment').onclick = ()=>{
+  const eligible = batchLineData.batches.filter(b=>b.inventory_qty>0);
+  if(eligible.length===0){ alert('No batches with Inventory units yet.'); return; }
+  document.getElementById('fuBatch').innerHTML = eligible.map(b=>`<option value="${b.batch_code}">${escapeHtml(batchLabel(b))}</option>`).join('');
+  document.getElementById('fuOrderRef').value=''; document.getElementById('fuQtyUnits').value=''; document.getElementById('fuErr').classList.remove('show');
+  updateFuHint();
+  openModal('modalFulfillment');
+};
+document.getElementById('fuBatch').addEventListener('change', updateFuHint);
+function updateFuHint(){
+  const code = document.getElementById('fuBatch').value;
+  const b = batchLineData.batches.find(x=>x.batch_code===code);
+  document.getElementById('fuHint').textContent = b ? `Inventory available: ${fmt(b.inventory_qty)}` : '';
+}
+async function submitFulfillment(){
+  const code = document.getElementById('fuBatch').value;
+  const orderRef = document.getElementById('fuOrderRef').value.trim();
+  const qty = parseInt(document.getElementById('fuQtyUnits').value,10);
+  const errEl = document.getElementById('fuErr');
+  if(!orderRef){ errEl.textContent='Enter an order name/number.'; errEl.classList.add('show'); return; }
+  if(!qty || qty<=0){ errEl.textContent='Enter a quantity greater than 0.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_reserve_to_order', { p_token: session.token, p_line: currentLine, p_batch_code: code, p_order_ref: orderRef, p_qty: qty, p_by: session.name });
   if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
-  await fetchBatchData(currentLine); renderLog(); closeModal('modalQcLabel');
+  await fetchBatchData(currentLine); await fetchOrders(currentLine); renderBatchTables(); renderDistributionTables(); renderLog(); closeModal('modalFulfillment');
 }
 
+// ---------- DISTRIBUTION (order-level QC & Labeling, then Manifest/Ship) ----------
+let ordersData = { pending: [], qcLabeled: [], shipped: [] };
+async function fetchOrders(lineId){
+  const { data, error } = await sb.from('mi_orders').select('*').eq('line_id', lineId).order('created_at',{ascending:false});
+  if(error){ showError('Could not load orders: ' + error.message); return; }
+  ordersData.pending = (data||[]).filter(o=>o.status==='pending');
+  ordersData.qcLabeled = (data||[]).filter(o=>o.status==='qc_labeled');
+  ordersData.shipped = (data||[]).filter(o=>o.status==='shipped');
+}
+async function orderUnitsReserved(orderId){
+  const { data } = await sb.from('mi_order_batches').select('qty').eq('order_id', orderId);
+  return (data||[]).reduce((s,r)=>s+r.qty,0);
+}
+async function renderDistributionTables(){
+  const pendBody = document.getElementById('pendingOrdersBody');
+  if(ordersData.pending.length===0){ pendBody.innerHTML = `<tr><td colspan="4"><div class="empty">No pending orders.</div></td></tr>`; }
+  else {
+    const rows = await Promise.all(ordersData.pending.map(async o=>{
+      const units = await orderUnitsReserved(o.id);
+      return `<tr><td>${escapeHtml(o.order_ref)}</td><td>${fmt(units)}</td><td>${new Date(o.created_at).toLocaleDateString()}</td><td><button class="ghost small" onclick="openOrderQc('${o.id}')">QC & Labeling</button></td></tr>`;
+    }));
+    pendBody.innerHTML = rows.join('');
+  }
+  const distBody = document.getElementById('distOrdersBody');
+  if(ordersData.qcLabeled.length===0){ distBody.innerHTML = `<tr><td colspan="5"><div class="empty">No orders available for distribution.</div></td></tr>`; }
+  else {
+    const rows = await Promise.all(ordersData.qcLabeled.map(async o=>{
+      const units = await orderUnitsReserved(o.id);
+      return `<tr><td>${escapeHtml(o.order_ref)}</td><td>${fmt(units)}</td><td>${fmt(o.displays_used)}</td><td>${fmt(o.cases_used)}</td><td>${escapeHtml(o.qc_by||'')}</td><td><button class="primary small" onclick="openManifest('${o.id}')">Grab & Create Manifest</button></td></tr>`;
+    }));
+    distBody.innerHTML = rows.join('');
+  }
+  const shipBody = document.getElementById('shippedOrdersBody');
+  if(ordersData.shipped.length===0){ shipBody.innerHTML = `<tr><td colspan="5"><div class="empty">No shipments yet.</div></td></tr>`; }
+  else {
+    const rows = await Promise.all(ordersData.shipped.map(async o=>{
+      const units = await orderUnitsReserved(o.id);
+      return `<tr><td>${escapeHtml(o.order_ref)}</td><td>${fmt(units)}</td><td>${escapeHtml(o.manifest_number||'')}</td><td>${o.manifest_date||''}</td><td>${escapeHtml(o.shipped_by||'')}</td></tr>`;
+    }));
+    shipBody.innerHTML = rows.join('');
+  }
+}
+let currentQcOrderId = null;
+async function openOrderQc(orderId){
+  currentQcOrderId = orderId;
+  const o = ordersData.pending.find(x=>x.id===orderId);
+  const units = await orderUnitsReserved(orderId);
+  document.getElementById('oqOrderName').textContent = `Order "${o.order_ref}" — ${fmt(units)} units reserved`;
+  ['oqUnitsDisplay','oqDisplaysUsed','oqUnitsCase','oqCasesUsed'].forEach(id=>document.getElementById(id).value='0');
+  document.getElementById('oqErr').classList.remove('show');
+  openModal('modalOrderQc');
+}
+async function submitOrderQc(){
+  const unitsDisplay = parseInt(document.getElementById('oqUnitsDisplay').value,10)||0;
+  const displaysUsed = parseInt(document.getElementById('oqDisplaysUsed').value,10)||0;
+  const unitsCase = parseInt(document.getElementById('oqUnitsCase').value,10)||0;
+  const casesUsed = parseInt(document.getElementById('oqCasesUsed').value,10)||0;
+  const errEl = document.getElementById('oqErr');
+  const { error } = await sb.rpc('mi_order_qc_label', { p_token: session.token, p_order_id: currentQcOrderId, p_units_in_displays: unitsDisplay, p_displays_used: displaysUsed, p_units_in_cases: unitsCase, p_cases_used: casesUsed, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  await fetchOrders(currentLine); renderDistributionTables(); renderLog(); closeModal('modalOrderQc');
+}
+let currentManifestOrderId = null;
+function openManifest(orderId){
+  currentManifestOrderId = orderId;
+  const o = ordersData.qcLabeled.find(x=>x.id===orderId);
+  document.getElementById('mfOrderName').textContent = `Order "${o.order_ref}"`;
+  document.getElementById('mfNumber').value=''; document.getElementById('mfDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('mfErr').classList.remove('show');
+  openModal('modalManifest');
+}
+async function submitManifest(){
+  const number = document.getElementById('mfNumber').value.trim();
+  const date = document.getElementById('mfDate').value;
+  const errEl = document.getElementById('mfErr');
+  if(!number){ errEl.textContent='Enter a manifest number.'; errEl.classList.add('show'); return; }
+  if(!date){ errEl.textContent='Enter a manifest date.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_order_create_manifest', { p_token: session.token, p_order_id: currentManifestOrderId, p_manifest_number: number, p_manifest_date: date, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  await fetchBatchData(currentLine); await fetchOrders(currentLine); renderBatchTables(); renderDistributionTables(); renderLog(); closeModal('modalManifest');
+}
 // ---------- DASHBOARD (executive summary across all product lines) ----------
 let dashboardData = {};
 async function fetchDashboardData(){
