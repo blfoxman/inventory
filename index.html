@@ -238,6 +238,95 @@
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalFulfill')">Cancel</button><button class="primary" onclick="submitFulfill()">Log</button></div>
 </div></div>
 
+
+<div class="overlay" id="modalLoss"><div class="modal">
+  <h3>Record Testing/Sampling Loss</h3>
+  <div class="hint" style="margin-bottom:10px;">For hardware/joints/units pulled for QC testing or samples — removes them from stock without moving them forward in the pipeline.</div>
+  <div class="field"><label>Flavor</label><select id="lsFlavor"></select></div>
+  <div class="field"><label>Where are these coming from?</label><select id="lsSource"></select></div>
+  <div class="field"><label>Quantity</label><input id="lsQty" type="number" min="1"></div>
+  <div class="hint" id="lsHint"></div>
+  <div class="field"><label>Reason</label><input id="lsReason" placeholder="e.g. QC test sample"></div>
+  <div class="err" id="lsErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalLoss')">Cancel</button><button class="primary" onclick="submitLoss()">Record</button></div>
+</div></div>
+
+<div class="overlay" id="modalAdmin"><div class="modal">
+  <h3>Admin</h3>
+  <div style="border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">
+    <div class="hint" style="margin-bottom:10px;">Directly set any number to its correct value. Requires a reason — this is logged and visible to everyone in Recent Activity.</div>
+    <div class="field"><label>Flavor</label><select id="admFlavor"></select></div>
+    <div class="field"><label>What are you correcting?</label><select id="admTarget"></select></div>
+    <div class="field"><label>Correct Quantity</label><input id="admQty" type="number" min="0"></div>
+    <div class="hint" id="admHint"></div>
+    <div class="field"><label>Reason</label><input id="admReason" placeholder="e.g. Fixed mislabeled case-pack entry"></div>
+    <div class="err" id="admErr"></div>
+    <button class="primary" onclick="submitAdminAdjust()">Save Correction</button>
+  </div>
+  <div>
+    <div class="hint" style="margin-bottom:10px;color:var(--rust);">Reset ALL numbers for the current product line (<span id="admResetLineName"></span>) back to zero. Flavors and their components stay defined — only quantities are wiped. Cannot be undone.</div>
+    <div class="err" id="admResetErr"></div>
+    <button class="ghost" style="border-color:var(--rust);color:var(--rust);" onclick="submitAdminReset()">Reset This Product Line</button>
+  </div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAdmin')">Close</button></div>
+</div></div>
+
+<div class="overlay" id="modalBatch"><div class="modal" style="max-width:480px;">
+  <h3>Batches / Barcodes</h3>
+  <div style="border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">
+    <div class="hint" style="margin-bottom:10px;">Create a batch ID for a production run — print it as a sticker to identify and search the batch later.</div>
+    <div class="field"><label>Product Line</label><select id="bcLine"></select></div>
+    <div class="field"><label>Flavor</label><select id="bcFlavor"></select></div>
+    <div class="field"><label>Stage / Description</label><input id="bcStage" placeholder="e.g. Fill — Blue Dream 7/27"></div>
+    <div class="field"><label>Quantity</label><input id="bcQty" type="number" min="1"></div>
+    <div class="field"><label>Notes (optional)</label><input id="bcNotes"></div>
+    <div class="err" id="bcErr"></div>
+    <button class="primary" onclick="submitCreateBatch()">Generate Batch ID</button>
+    <div id="bcResult" style="display:none;margin-top:14px;text-align:center;">
+      <svg id="bcBarcode"></svg>
+      <div class="hint" id="bcResultText" style="margin-top:6px;"></div>
+      <button class="ghost" style="margin-top:8px;" onclick="printBatchLabel()">Print Sticker</button>
+    </div>
+  </div>
+  <div>
+    <div class="hint" style="margin-bottom:10px;">Look up a batch by its code (scan or type it in) to see what it is and where it was in the pipeline when created.</div>
+    <div class="field"><label>Batch Code</label><input id="bcLookupCode" placeholder="e.g. MIB-260727-00001"></div>
+    <button class="ghost" onclick="submitLookupBatch()">Look Up</button>
+    <div id="bcLookupResult" style="margin-top:12px;font-size:13px;"></div>
+  </div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalBatch')">Close</button></div>
+</div></div>
+
+<div class="overlay" id="modalReports"><div class="modal" style="max-width:600px;">
+  <h3>Reports / Audit Log</h3>
+  <div style="border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">
+    <div class="hint" style="margin-bottom:10px;">Download a full snapshot of every product line — components, production, sellable, and packed totals — as a spreadsheet.</div>
+    <button class="primary" onclick="downloadCsvReport()">Download Report (CSV)</button>
+  </div>
+  <div>
+    <div class="hint" style="margin-bottom:10px;">Full activity history across every product line. Search by name, flavor, or keyword.</div>
+    <div class="field"><input id="auditSearch" placeholder="Search (e.g. a name, 'ADMIN ADJUST', a flavor)..." oninput="renderAuditLog()"></div>
+    <div id="auditLogList" style="max-height:400px;overflow-y:auto;background:var(--panel2);border:1px solid var(--line);border-radius:8px;"></div>
+  </div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalReports')">Close</button></div>
+</div></div>
+
+<div class="overlay" id="modalPhysicalAudit"><div class="modal" style="max-width:560px;">
+  <h3>Physical Audit</h3>
+  <div class="hint" style="margin-bottom:10px;">Count what's actually on the shelf/floor for one flavor, enter it below, and see the variance against the system. Leave a box blank to skip it.</div>
+  <div class="field"><label>Product Line</label><select id="paLine"></select></div>
+  <div class="field"><label>Flavor</label><select id="paFlavor"></select></div>
+  <div id="paTableWrap" class="tblwrap" style="margin-top:10px;"></div>
+  <div class="err" id="paErr"></div>
+  <div class="modal-actions" style="justify-content:space-between;">
+    <button class="ghost" onclick="downloadAuditCsv()">Export Count Sheet (CSV)</button>
+    <div style="display:flex;gap:8px;">
+      <button class="ghost" onclick="closeModal('modalPhysicalAudit')">Close</button>
+      <button class="primary" id="paApplyBtn" style="display:none;" onclick="applyPhysicalAudit()">Apply Corrections</button>
+    </div>
+  </div>
+</div></div>
+
 <script>
 const SUPABASE_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
@@ -1059,93 +1148,5 @@ if('serviceWorker' in navigator){
   });
 }
 </script>
-<div class="overlay" id="modalLoss"><div class="modal">
-  <h3>Record Testing/Sampling Loss</h3>
-  <div class="hint" style="margin-bottom:10px;">For hardware/joints/units pulled for QC testing or samples — removes them from stock without moving them forward in the pipeline.</div>
-  <div class="field"><label>Flavor</label><select id="lsFlavor"></select></div>
-  <div class="field"><label>Where are these coming from?</label><select id="lsSource"></select></div>
-  <div class="field"><label>Quantity</label><input id="lsQty" type="number" min="1"></div>
-  <div class="hint" id="lsHint"></div>
-  <div class="field"><label>Reason</label><input id="lsReason" placeholder="e.g. QC test sample"></div>
-  <div class="err" id="lsErr"></div>
-  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalLoss')">Cancel</button><button class="primary" onclick="submitLoss()">Record</button></div>
-</div></div>
-
-<div class="overlay" id="modalAdmin"><div class="modal">
-  <h3>Admin</h3>
-  <div style="border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">
-    <div class="hint" style="margin-bottom:10px;">Directly set any number to its correct value. Requires a reason — this is logged and visible to everyone in Recent Activity.</div>
-    <div class="field"><label>Flavor</label><select id="admFlavor"></select></div>
-    <div class="field"><label>What are you correcting?</label><select id="admTarget"></select></div>
-    <div class="field"><label>Correct Quantity</label><input id="admQty" type="number" min="0"></div>
-    <div class="hint" id="admHint"></div>
-    <div class="field"><label>Reason</label><input id="admReason" placeholder="e.g. Fixed mislabeled case-pack entry"></div>
-    <div class="err" id="admErr"></div>
-    <button class="primary" onclick="submitAdminAdjust()">Save Correction</button>
-  </div>
-  <div>
-    <div class="hint" style="margin-bottom:10px;color:var(--rust);">Reset ALL numbers for the current product line (<span id="admResetLineName"></span>) back to zero. Flavors and their components stay defined — only quantities are wiped. Cannot be undone.</div>
-    <div class="err" id="admResetErr"></div>
-    <button class="ghost" style="border-color:var(--rust);color:var(--rust);" onclick="submitAdminReset()">Reset This Product Line</button>
-  </div>
-  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAdmin')">Close</button></div>
-</div></div>
-
-<div class="overlay" id="modalBatch"><div class="modal" style="max-width:480px;">
-  <h3>Batches / Barcodes</h3>
-  <div style="border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">
-    <div class="hint" style="margin-bottom:10px;">Create a batch ID for a production run — print it as a sticker to identify and search the batch later.</div>
-    <div class="field"><label>Product Line</label><select id="bcLine"></select></div>
-    <div class="field"><label>Flavor</label><select id="bcFlavor"></select></div>
-    <div class="field"><label>Stage / Description</label><input id="bcStage" placeholder="e.g. Fill — Blue Dream 7/27"></div>
-    <div class="field"><label>Quantity</label><input id="bcQty" type="number" min="1"></div>
-    <div class="field"><label>Notes (optional)</label><input id="bcNotes"></div>
-    <div class="err" id="bcErr"></div>
-    <button class="primary" onclick="submitCreateBatch()">Generate Batch ID</button>
-    <div id="bcResult" style="display:none;margin-top:14px;text-align:center;">
-      <svg id="bcBarcode"></svg>
-      <div class="hint" id="bcResultText" style="margin-top:6px;"></div>
-      <button class="ghost" style="margin-top:8px;" onclick="printBatchLabel()">Print Sticker</button>
-    </div>
-  </div>
-  <div>
-    <div class="hint" style="margin-bottom:10px;">Look up a batch by its code (scan or type it in) to see what it is and where it was in the pipeline when created.</div>
-    <div class="field"><label>Batch Code</label><input id="bcLookupCode" placeholder="e.g. MIB-260727-00001"></div>
-    <button class="ghost" onclick="submitLookupBatch()">Look Up</button>
-    <div id="bcLookupResult" style="margin-top:12px;font-size:13px;"></div>
-  </div>
-  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalBatch')">Close</button></div>
-</div></div>
-
-<div class="overlay" id="modalReports"><div class="modal" style="max-width:600px;">
-  <h3>Reports / Audit Log</h3>
-  <div style="border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">
-    <div class="hint" style="margin-bottom:10px;">Download a full snapshot of every product line — components, production, sellable, and packed totals — as a spreadsheet.</div>
-    <button class="primary" onclick="downloadCsvReport()">Download Report (CSV)</button>
-  </div>
-  <div>
-    <div class="hint" style="margin-bottom:10px;">Full activity history across every product line. Search by name, flavor, or keyword.</div>
-    <div class="field"><input id="auditSearch" placeholder="Search (e.g. a name, 'ADMIN ADJUST', a flavor)..." oninput="renderAuditLog()"></div>
-    <div id="auditLogList" style="max-height:400px;overflow-y:auto;background:var(--panel2);border:1px solid var(--line);border-radius:8px;"></div>
-  </div>
-  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalReports')">Close</button></div>
-</div></div>
-
-<div class="overlay" id="modalPhysicalAudit"><div class="modal" style="max-width:560px;">
-  <h3>Physical Audit</h3>
-  <div class="hint" style="margin-bottom:10px;">Count what's actually on the shelf/floor for one flavor, enter it below, and see the variance against the system. Leave a box blank to skip it.</div>
-  <div class="field"><label>Product Line</label><select id="paLine"></select></div>
-  <div class="field"><label>Flavor</label><select id="paFlavor"></select></div>
-  <div id="paTableWrap" class="tblwrap" style="margin-top:10px;"></div>
-  <div class="err" id="paErr"></div>
-  <div class="modal-actions" style="justify-content:space-between;">
-    <button class="ghost" onclick="downloadAuditCsv()">Export Count Sheet (CSV)</button>
-    <div style="display:flex;gap:8px;">
-      <button class="ghost" onclick="closeModal('modalPhysicalAudit')">Close</button>
-      <button class="primary" id="paApplyBtn" style="display:none;" onclick="applyPhysicalAudit()">Apply Corrections</button>
-    </div>
-  </div>
-</div></div>
-
 </body>
 </html>
