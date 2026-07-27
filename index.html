@@ -122,6 +122,8 @@
     <button class="ghost" id="btnAdvance">Advance Production</button>
     <button class="ghost" id="btnPack">Pack</button>
     <button class="ghost" id="btnFulfill">Reserve / Ship</button>
+    <button class="ghost" id="btnLoss">Record Testing/Sampling Loss</button>
+    <button class="ghost" id="btnAdmin" style="display:none;border-color:var(--rust);color:var(--rust);">Admin</button>
   </div>
 
   <section class="block">
@@ -265,7 +267,7 @@ async function submitLogin(){
   if(!email || !password){ errEl.textContent='Enter email and password.'; errEl.classList.add('show'); return; }
   const { data, error } = await sb.rpc('mi_login', { p_email: email, p_password: password });
   if(error || !data || !data[0]){ errEl.textContent='Invalid email or password.'; errEl.classList.add('show'); return; }
-  session = { token: data[0].token, name: data[0].user_name, id: data[0].user_id };
+  session = { token: data[0].token, name: data[0].user_name, id: data[0].user_id, role: data[0].user_role };
   localStorage.setItem('mi_session', JSON.stringify(session));
   enterApp();
 }
@@ -279,6 +281,7 @@ function enterApp(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='block';
   document.getElementById('whoName').textContent = session.name;
+  document.getElementById('btnAdmin').style.display = session.role==='admin' ? 'inline-block' : 'none';
   render();
 }
 
@@ -453,6 +456,102 @@ document.getElementById('btnReceive').onclick = ()=>{ document.getElementById('r
 document.getElementById('btnAdvance').onclick = ()=>{ if(lineData.flavors.length===0){alert('Add a flavor first.');return;} document.getElementById('adQty').value=''; document.getElementById('adErr').classList.remove('show'); populateAllSelects(); openModal('modalAdvance'); };
 document.getElementById('btnPack').onclick = ()=>{ if(lineData.flavors.length===0){alert('Add a flavor first.');return;} document.getElementById('pkQty').value=''; document.getElementById('pkVarQty').value=''; document.getElementById('pkErr').classList.remove('show'); populateAllSelects(); openModal('modalPack'); };
 document.getElementById('btnFulfill').onclick = ()=>{ if(lineData.flavors.length===0){alert('Add a flavor first.');return;} document.getElementById('fuQty').value=''; document.getElementById('fuRef').value=''; document.getElementById('fuErr').classList.remove('show'); populateAllSelects(); openModal('modalFulfill'); };
+document.getElementById('btnLoss').onclick = ()=>{ if(lineData.flavors.length===0){alert('Add a flavor first.');return;} document.getElementById('lsQty').value=''; document.getElementById('lsReason').value=''; document.getElementById('lsErr').classList.remove('show'); populateLossSelects(); openModal('modalLoss'); };
+document.getElementById('btnAdmin').onclick = ()=>{ document.getElementById('admQty').value=''; document.getElementById('admReason').value=''; document.getElementById('admErr').classList.remove('show'); document.getElementById('admResetErr').classList.remove('show'); document.getElementById('admResetLineName').textContent = pl().name; populateAdminSelects(); openModal('modalAdmin'); };
+
+document.getElementById('lsFlavor').addEventListener('change', updateLossHint);
+document.getElementById('lsSource').addEventListener('change', updateLossHint);
+document.getElementById('admFlavor').addEventListener('change', updateAdminHint);
+document.getElementById('admTarget').addEventListener('change', updateAdminHint);
+
+function populateLossSelects(){
+  const line = pl();
+  const flOpts = lineData.flavors.map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('') || '<option value="">No flavors yet</option>';
+  document.getElementById('lsFlavor').innerHTML = flOpts;
+  const opts = line.stages.map(s=>`<option value="stage:${s.id}">${escapeHtml(s.label)} stock</option>`);
+  opts.push(`<option value="sellable">Sellable units</option>`);
+  document.getElementById('lsSource').innerHTML = opts.join('');
+  updateLossHint();
+}
+function updateLossHint(){
+  const flId = document.getElementById('lsFlavor').value; const src = document.getElementById('lsSource').value;
+  const hint = document.getElementById('lsHint'); if(!src){ hint.textContent=''; return; }
+  const qty = src==='sellable' ? sellableQty(flId) : stageQty(flId, src.split(':')[1]);
+  hint.textContent = `On hand: ${fmt(qty)}`;
+}
+async function submitLoss(){
+  const flId = document.getElementById('lsFlavor').value; const src = document.getElementById('lsSource').value;
+  const qty = parseInt(document.getElementById('lsQty').value,10);
+  const reason = document.getElementById('lsReason').value.trim();
+  const errEl = document.getElementById('lsErr');
+  if(!flId){ errEl.textContent='Choose a flavor.'; errEl.classList.add('show'); return; }
+  if(!qty || qty<=0){ errEl.textContent='Enter a quantity greater than 0.'; errEl.classList.add('show'); return; }
+  if(!reason){ errEl.textContent='Enter a reason (e.g. QC test sample).'; errEl.classList.add('show'); return; }
+  const isStage = src.startsWith('stage:');
+  const { error } = await sb.rpc('mi_record_loss', {
+    p_token: session.token, p_line: currentLine, p_flavor: flId,
+    p_source_type: isStage ? 'stage' : 'sellable', p_source_id: isStage ? src.split(':')[1] : null,
+    p_qty: qty, p_reason: reason, p_by: session.name
+  });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  await fetchLineData(currentLine); render(); closeModal('modalLoss');
+}
+
+function populateAdminSelects(){
+  const line = pl();
+  const flOpts = lineData.flavors.map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('') || '<option value="">No flavors yet</option>';
+  document.getElementById('admFlavor').innerHTML = flOpts;
+  const opts = [];
+  line.components.filter(c=>c.scope!=='shared').forEach(c=> opts.push(`<option value="flavor_component:${c.id}">${escapeHtml(c.label)}</option>`));
+  line.components.filter(c=>c.scope==='shared').forEach(c=> opts.push(`<option value="shared_component:${c.id}">${escapeHtml(c.label)} (shared)</option>`));
+  line.stages.forEach(s=> opts.push(`<option value="stage:${s.id}">${escapeHtml(s.label)} stock</option>`));
+  opts.push(`<option value="sellable:">Sellable units</option>`);
+  line.packLevels.forEach(l=> opts.push(`<option value="pack:${l.id}">${escapeHtml(l.label)}s packed</option>`));
+  opts.push(`<option value="reserved:">Reserved</option>`);
+  opts.push(`<option value="shipped:">Shipped</option>`);
+  document.getElementById('admTarget').innerHTML = opts.join('');
+  updateAdminHint();
+}
+function updateAdminHint(){
+  const flId = document.getElementById('admFlavor').value; const val = document.getElementById('admTarget').value;
+  const hint = document.getElementById('admHint'); if(!val){ hint.textContent=''; return; }
+  const [type, id] = val.split(':');
+  let current = 0;
+  if(type==='shared_component') current = lineData.shared[id]||0;
+  else if(type==='flavor_component') current = getComp(flId, id);
+  else if(type==='stage') current = stageQty(flId, id);
+  else if(type==='sellable') current = sellableQty(flId);
+  else if(type==='pack') current = packQty(flId, id);
+  else if(type==='reserved') current = fulfilledOf(flId).reserved;
+  else if(type==='shipped') current = fulfilledOf(flId).shipped;
+  hint.textContent = `Current value: ${fmt(current)}`;
+}
+async function submitAdminAdjust(){
+  const flId = document.getElementById('admFlavor').value; const val = document.getElementById('admTarget').value;
+  const qty = parseInt(document.getElementById('admQty').value,10);
+  const reason = document.getElementById('admReason').value.trim();
+  const errEl = document.getElementById('admErr');
+  const [type, id] = val.split(':');
+  if(!flId && type!=='shared_component'){ errEl.textContent='Choose a flavor.'; errEl.classList.add('show'); return; }
+  if(qty===null || isNaN(qty) || qty<0){ errEl.textContent='Enter a valid quantity (0 or more).'; errEl.classList.add('show'); return; }
+  if(!reason){ errEl.textContent='Enter a reason.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_admin_adjust', {
+    p_token: session.token, p_line: currentLine, p_flavor: type==='shared_component'?null:flId,
+    p_target_type: type, p_target_id: id||null, p_new_qty: qty, p_reason: reason, p_by: session.name
+  });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  await fetchLineData(currentLine); render(); closeModal('modalAdmin');
+}
+async function submitAdminReset(){
+  const errEl = document.getElementById('admResetErr');
+  if(!confirm(`Reset ALL numbers for ${pl().name} to zero? This cannot be undone.`)) return;
+  const { error } = await sb.rpc('mi_admin_reset_line', { p_token: session.token, p_line: currentLine, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  await fetchLineData(currentLine); render(); closeModal('modalAdmin');
+}
 
 document.getElementById('recComp').addEventListener('change', updateReceiveHint);
 document.getElementById('recFlavor').addEventListener('change', updateReceiveHint);
@@ -484,11 +583,14 @@ function updateAdvanceHint(){
 function updatePackHint(){
   const line = pl(); const flId = document.getElementById('pkFlavor').value; const levelId = document.getElementById('pkLevel').value;
   const idx = line.packLevels.findIndex(l=>l.id===levelId); const lv = line.packLevels[idx]; const hint = document.getElementById('pkHint');
+  const sourceLabel = idx===0 ? 'Sellable units' : line.packLevels[idx-1].label+'s';
   document.getElementById('pkQtyWrap').style.display = lv && lv.variable ? 'none' : 'block';
   document.getElementById('pkVarWrap').style.display = lv && lv.variable ? 'block' : 'none';
   if(!lv){ hint.textContent=''; return; }
+  if(lv.variable){
+    document.querySelector('#pkVarWrap label').textContent = `How many ${sourceLabel} are going into THIS ONE ${lv.label}? (not how many ${lv.label}s)`;
+  }
   const sourceQty = idx===0 ? sellableQty(flId) : packQty(flId, line.packLevels[idx-1].id);
-  const sourceLabel = idx===0 ? 'Sellable units' : line.packLevels[idx-1].label+'s';
   const compLabelDef = compDef(currentLine, lv.extraComponent);
   hint.textContent = lv.variable
     ? `${sourceLabel} on hand: ${fmt(sourceQty)} · ${compLabelDef.label}: ${fmt(getComp(flId,lv.extraComponent))}`
@@ -605,5 +707,37 @@ if('serviceWorker' in navigator){
   });
 }
 </script>
+<div class="overlay" id="modalLoss"><div class="modal">
+  <h3>Record Testing/Sampling Loss</h3>
+  <div class="hint" style="margin-bottom:10px;">For hardware/joints/units pulled for QC testing or samples — removes them from stock without moving them forward in the pipeline.</div>
+  <div class="field"><label>Flavor</label><select id="lsFlavor"></select></div>
+  <div class="field"><label>Where are these coming from?</label><select id="lsSource"></select></div>
+  <div class="field"><label>Quantity</label><input id="lsQty" type="number" min="1"></div>
+  <div class="hint" id="lsHint"></div>
+  <div class="field"><label>Reason</label><input id="lsReason" placeholder="e.g. QC test sample"></div>
+  <div class="err" id="lsErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalLoss')">Cancel</button><button class="primary" onclick="submitLoss()">Record</button></div>
+</div></div>
+
+<div class="overlay" id="modalAdmin"><div class="modal">
+  <h3>Admin</h3>
+  <div style="border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">
+    <div class="hint" style="margin-bottom:10px;">Directly set any number to its correct value. Requires a reason — this is logged and visible to everyone in Recent Activity.</div>
+    <div class="field"><label>Flavor</label><select id="admFlavor"></select></div>
+    <div class="field"><label>What are you correcting?</label><select id="admTarget"></select></div>
+    <div class="field"><label>Correct Quantity</label><input id="admQty" type="number" min="0"></div>
+    <div class="hint" id="admHint"></div>
+    <div class="field"><label>Reason</label><input id="admReason" placeholder="e.g. Fixed mislabeled case-pack entry"></div>
+    <div class="err" id="admErr"></div>
+    <button class="primary" onclick="submitAdminAdjust()">Save Correction</button>
+  </div>
+  <div>
+    <div class="hint" style="margin-bottom:10px;color:var(--rust);">Reset ALL numbers for the current product line (<span id="admResetLineName"></span>) back to zero. Flavors and their components stay defined — only quantities are wiped. Cannot be undone.</div>
+    <div class="err" id="admResetErr"></div>
+    <button class="ghost" style="border-color:var(--rust);color:var(--rust);" onclick="submitAdminReset()">Reset This Product Line</button>
+  </div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAdmin')">Close</button></div>
+</div></div>
+
 </body>
 </html>
