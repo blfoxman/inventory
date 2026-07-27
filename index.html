@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <style>
   :root{
     --bg:#17140f; --panel:#211d17; --panel2:#2a251d; --line:#3a3226;
@@ -85,6 +86,21 @@
   .login-box{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;max-width:360px;padding:28px;}
   .login-box h1{margin-bottom:4px;}
   .login-box .sub{margin-bottom:20px;}
+
+  .dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
+  .dash-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;}
+  .dash-card h3{margin:0 0 12px;font-size:14px;color:var(--amber);}
+  .dash-row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line);}
+  .dash-row:last-child{border-bottom:none;}
+  .dash-row b{font-variant-numeric:tabular-nums;}
+  tfoot td{padding:9px 10px;font-size:13px;font-weight:700;border-top:2px solid var(--amber-dim);background:var(--panel2);font-variant-numeric:tabular-nums;}
+
+  #printLabel{display:none;}
+  @media print{
+    body *{visibility:hidden;}
+    #printLabel, #printLabel *{visibility:visible;}
+    #printLabel{display:block;position:fixed;top:0;left:0;padding:12px;}
+  }
 </style>
 </head>
 <body>
@@ -116,40 +132,54 @@
   <div class="shared-strip" id="sharedStrip"></div>
   <div id="backlogPanel"></div>
 
-  <div class="toolbar">
+  <div id="dashboardView" style="display:none;">
+    <div class="dash-grid" id="dashGrid"></div>
+  </div>
+
+  <div class="toolbar" id="mainToolbar">
     <button class="primary" id="btnAddFlavor">Add Flavor</button>
     <button class="ghost" id="btnReceive">Receive Components</button>
     <button class="ghost" id="btnAdvance">Advance Production</button>
     <button class="ghost" id="btnPack">Pack</button>
     <button class="ghost" id="btnFulfill">Reserve / Ship</button>
     <button class="ghost" id="btnLoss">Record Testing/Sampling Loss</button>
+    <button class="ghost" id="btnBatch">Batches / Barcodes</button>
     <button class="ghost" id="btnAdmin" style="display:none;border-color:var(--rust);color:var(--rust);">Admin</button>
   </div>
 
-  <section class="block">
+  <div id="mainTables"></div>
+
+  <section class="block" id="compSection">
     <h2 class="head" id="compHeadTitle">Components on Hand (per flavor)</h2>
-    <div class="tblwrap"><table id="compTable"><thead><tr id="compHead"></tr></thead><tbody id="compBody"></tbody></table></div>
+    <div class="tblwrap"><table id="compTable"><thead><tr id="compHead"></tr></thead><tbody id="compBody"></tbody><tfoot id="compFoot"></tfoot></table></div>
   </section>
 
   <section class="block" id="stageSection" style="display:none;">
     <h2 class="head">Production Pipeline</h2>
-    <div class="tblwrap"><table id="stageTable"><thead><tr id="stageHead"></tr></thead><tbody id="stageBody"></tbody></table></div>
+    <div class="tblwrap"><table id="stageTable"><thead><tr id="stageHead"></tr></thead><tbody id="stageBody"></tbody><tfoot id="stageFoot"></tfoot></table></div>
   </section>
 
-  <section class="block">
+  <section class="block" id="sellSection">
     <h2 class="head" id="sellableHead">Sellable Units</h2>
-    <div class="tblwrap"><table id="sellTable"><thead><tr><th>Flavor</th><th>Available to Pack</th></tr></thead><tbody id="sellBody"></tbody></table></div>
+    <div class="tblwrap"><table id="sellTable"><thead><tr><th>Flavor</th><th>Available to Pack</th></tr></thead><tbody id="sellBody"></tbody><tfoot id="sellFoot"></tfoot></table></div>
   </section>
 
-  <section class="block">
+  <section class="block" id="packSection">
     <h2 class="head">Packing Levels</h2>
-    <div class="tblwrap"><table id="packTable"><thead><tr id="packHead"></tr></thead><tbody id="packBody"></tbody></table></div>
+    <div class="tblwrap"><table id="packTable"><thead><tr id="packHead"></tr></thead><tbody id="packBody"></tbody><tfoot id="packFoot"></tfoot></table></div>
   </section>
 
-  <section class="block">
+  <section class="block" id="logSection">
     <h2 class="head">Recent Activity</h2>
     <div id="logList" style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);"></div>
   </section>
+</div>
+
+<div id="printLabel">
+  <div style="text-align:center;">
+    <svg id="printBarcode"></svg>
+    <div style="font-size:11px;font-family:monospace;margin-top:2px;" id="printLabelText"></div>
+  </div>
 </div>
 
 <div class="overlay" id="modalFlavor"><div class="modal">
@@ -328,14 +358,28 @@ function packQty(flId, levelId){ return (lineData.packs[flId]||{})[levelId]||0; 
 function fulfilledOf(flId){ return lineData.fulfilled[flId]||{reserved:0,shipped:0}; }
 
 // ---------- RENDER ----------
+const DASHBOARD_ID = '__dashboard__';
 function renderTabs(){
-  document.getElementById('lineTabs').innerHTML = PRODUCT_LINES.map(l=>`<div class="tab ${l.id===currentLine?'active':''}" onclick="switchLine('${l.id}')">${escapeHtml(l.name)}</div>`).join('');
-  document.getElementById('lineSub').textContent = pl().stages.length ? 'Components → Production Pipeline → Sellable → Packing' : 'Components → Sellable → Packing';
+  const tabsHtml = [`<div class="tab ${currentLine===DASHBOARD_ID?'active':''}" onclick="switchLine('${DASHBOARD_ID}')">📊 Dashboard</div>`]
+    .concat(PRODUCT_LINES.map(l=>`<div class="tab ${l.id===currentLine?'active':''}" onclick="switchLine('${l.id}')">${escapeHtml(l.name)}</div>`));
+  document.getElementById('lineTabs').innerHTML = tabsHtml.join('');
+  document.getElementById('lineSub').textContent = currentLine===DASHBOARD_ID ? 'Executive summary — all product lines' : (pl().stages.length ? 'Components → Production Pipeline → Sellable → Packing' : 'Components → Sellable → Packing');
 }
-async function switchLine(id){ currentLine = id; await fetchLineData(currentLine); render(); }
+async function switchLine(id){
+  currentLine = id;
+  if(id===DASHBOARD_ID){ await fetchDashboardData(); render(); return; }
+  await fetchLineData(currentLine); render();
+}
 
 async function render(){
   renderTabs();
+  const isDash = currentLine===DASHBOARD_ID;
+  document.getElementById('dashboardView').style.display = isDash ? 'block' : 'none';
+  document.getElementById('mainToolbar').style.display = isDash ? 'none' : 'flex';
+  ['compSection','stageSection','sellSection','packSection','logSection'].forEach(id=> document.getElementById(id).style.display = isDash ? 'none' : '');
+  document.getElementById('sharedStrip').style.display = isDash ? 'none' : '';
+  document.getElementById('backlogPanel').style.display = isDash ? 'none' : '';
+  if(isDash){ renderDashboard(); return; }
   renderSharedStrip();
   renderBacklog();
   renderCompTable();
@@ -344,6 +388,56 @@ async function render(){
   renderPackTable();
   renderLog();
   populateAllSelects();
+}
+
+// ---------- DASHBOARD (executive summary across all product lines) ----------
+let dashboardData = {};
+async function fetchDashboardData(){
+  clearError();
+  for(const line of PRODUCT_LINES){
+    const [sharedR, compR, stageR, sellR, packR, fulfilR] = await Promise.all([
+      sb.from('mi_shared_components').select('*').eq('line_id', line.id),
+      sb.from('mi_flavor_components').select('*').eq('line_id', line.id),
+      sb.from('mi_stage_stock').select('*').eq('line_id', line.id),
+      sb.from('mi_sellable').select('*').eq('line_id', line.id),
+      sb.from('mi_pack_stock').select('*').eq('line_id', line.id),
+      sb.from('mi_fulfilled').select('*').eq('line_id', line.id)
+    ]);
+    const anyErr = [sharedR,compR,stageR,sellR,packR,fulfilR].find(r=>r.error);
+    if(anyErr){ showError('Could not load dashboard: ' + anyErr.error.message); return; }
+
+    const compTotals = {}; line.components.forEach(c=>compTotals[c.id]=0);
+    (sharedR.data||[]).forEach(r=> compTotals[r.comp_id] = (compTotals[r.comp_id]||0) + r.qty);
+    (compR.data||[]).forEach(r=> compTotals[r.comp_id] = (compTotals[r.comp_id]||0) + r.qty);
+
+    const inProduction = (stageR.data||[]).reduce((sum,r)=>sum+r.qty, 0);
+    const sellableTotal = line.stages.length===0
+      ? line.components.filter(c=>c.id===line.baseComponent).reduce((s,c)=>s+(compTotals[c.id]||0),0)
+      : (sellR.data||[]).reduce((sum,r)=>sum+r.qty,0);
+    const packTotals = {}; line.packLevels.forEach(l=>packTotals[l.id]=0);
+    (packR.data||[]).forEach(r=> packTotals[r.level_id] = (packTotals[r.level_id]||0) + r.qty);
+    const reserved = (fulfilR.data||[]).reduce((s,r)=>s+r.reserved,0);
+    const shipped = (fulfilR.data||[]).reduce((s,r)=>s+r.shipped,0);
+
+    dashboardData[line.id] = { compTotals, inProduction, sellableTotal, packTotals, reserved, shipped };
+  }
+}
+function renderDashboard(){
+  const el = document.getElementById('dashGrid');
+  el.innerHTML = PRODUCT_LINES.map(line=>{
+    const d = dashboardData[line.id]; if(!d) return '';
+    const compRows = line.components.map(c=>`<div class="dash-row"><span>${escapeHtml(c.label)}${c.scope==='shared'?' (shared)':''} available</span><b>${fmt(d.compTotals[c.id])}</b></div>`).join('');
+    const packRows = line.packLevels.map(l=>`<div class="dash-row"><span>${escapeHtml(l.label)}s packed</span><b>${fmt(d.packTotals[l.id])}</b></div>`).join('');
+    return `<div class="dash-card">
+      <h3>${escapeHtml(line.name)}</h3>
+      ${compRows}
+      <div class="dash-row"><span>In Production (WIP)</span><b>${fmt(d.inProduction)}</b></div>
+      <div class="dash-row"><span>Sellable Units</span><b>${fmt(d.sellableTotal)}</b></div>
+      ${packRows}
+      <div class="dash-row"><span>Reserved</span><b>${fmt(d.reserved)}</b></div>
+      <div class="dash-row"><span>Shipped</span><b>${fmt(d.shipped)}</b></div>
+    </div>`;
+  }).join('');
 }
 
 function renderSharedStrip(){
@@ -390,45 +484,55 @@ function renderCompTable(){
   const line = pl(); const flavorComps = line.components.filter(c=>c.scope!=='shared');
   document.getElementById('compHeadTitle').textContent = flavorComps.length ? 'Components on Hand (per flavor)' : 'Components on Hand';
   document.getElementById('compHead').innerHTML = '<th>Flavor</th>' + flavorComps.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('');
-  const body = document.getElementById('compBody');
-  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="${flavorComps.length+1}"><div class="empty">No flavors yet for ${escapeHtml(line.name)}.</div></td></tr>`; return; }
+  const body = document.getElementById('compBody'); const foot = document.getElementById('compFoot');
+  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="${flavorComps.length+1}"><div class="empty">No flavors yet for ${escapeHtml(line.name)}.</div></td></tr>`; foot.innerHTML=''; return; }
   body.innerHTML = lineData.flavors.map(fl=>{
     const cells = flavorComps.map(k=>{ const v=getComp(fl.id,k.id); return `<td class="${v===0?'qty-zero':''}">${fmt(v)}</td>`; }).join('');
     return `<tr><td class="flavor-name">${escapeHtml(fl.name)}</td>${cells}</tr>`;
   }).join('');
+  const totals = flavorComps.map(k=> lineData.flavors.reduce((s,fl)=>s+getComp(fl.id,k.id),0));
+  foot.innerHTML = `<tr><td>TOTAL — all flavors</td>${totals.map(t=>`<td>${fmt(t)}</td>`).join('')}</tr>`;
 }
 
 function renderStageTable(){
   const line = pl(); const sec = document.getElementById('stageSection');
   if(line.stages.length===0){ sec.style.display='none'; return; }
-  sec.style.display='block';
+  sec.style.display='';
   document.getElementById('stageHead').innerHTML = '<th>Flavor</th>' + line.stages.map(s=>`<th>${escapeHtml(s.label)}</th>`).join('');
-  const body = document.getElementById('stageBody');
-  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="${line.stages.length+1}"><div class="empty">—</div></td></tr>`; return; }
+  const body = document.getElementById('stageBody'); const foot = document.getElementById('stageFoot');
+  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="${line.stages.length+1}"><div class="empty">—</div></td></tr>`; foot.innerHTML=''; return; }
   body.innerHTML = lineData.flavors.map(fl=>{
     const cells = line.stages.map(st=>{ const v=stageQty(fl.id,st.id); return `<td class="${v===0?'qty-zero':''}">${fmt(v)}</td>`; }).join('');
     return `<tr><td class="flavor-name">${escapeHtml(fl.name)}</td>${cells}</tr>`;
   }).join('');
+  const totals = line.stages.map(st=> lineData.flavors.reduce((s,fl)=>s+stageQty(fl.id,st.id),0));
+  foot.innerHTML = `<tr><td>TOTAL — all flavors</td>${totals.map(t=>`<td>${fmt(t)}</td>`).join('')}</tr>`;
 }
 
 function renderSellTable(){
   const line = pl();
   document.getElementById('sellableHead').textContent = line.stages.length ? 'Sellable Units' : `Sellable Units (= ${compDef(currentLine, line.baseComponent).label} on hand)`;
-  const body = document.getElementById('sellBody');
-  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="2"><div class="empty">—</div></td></tr>`; return; }
+  const body = document.getElementById('sellBody'); const foot = document.getElementById('sellFoot');
+  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="2"><div class="empty">—</div></td></tr>`; foot.innerHTML=''; return; }
   body.innerHTML = lineData.flavors.map(fl=>{ const v=sellableQty(fl.id); return `<tr><td class="flavor-name">${escapeHtml(fl.name)}</td><td class="${v===0?'qty-zero':''}">${fmt(v)}</td></tr>`; }).join('');
+  const total = lineData.flavors.reduce((s,fl)=>s+sellableQty(fl.id),0);
+  foot.innerHTML = `<tr><td>TOTAL — all flavors</td><td>${fmt(total)}</td></tr>`;
 }
 
 function renderPackTable(){
   const line = pl();
   document.getElementById('packHead').innerHTML = '<th>Flavor</th>' + line.packLevels.map(l=>`<th>${escapeHtml(l.label)}</th>`).join('') + '<th>Reserved</th><th>Shipped</th>';
-  const body = document.getElementById('packBody');
-  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="${line.packLevels.length+3}"><div class="empty">—</div></td></tr>`; return; }
+  const body = document.getElementById('packBody'); const foot = document.getElementById('packFoot');
+  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="${line.packLevels.length+3}"><div class="empty">—</div></td></tr>`; foot.innerHTML=''; return; }
   body.innerHTML = lineData.flavors.map(fl=>{
     const f = fulfilledOf(fl.id);
     const cells = line.packLevels.map(lv=>{ const v=packQty(fl.id,lv.id); return `<td class="${v===0?'qty-zero':''}">${fmt(v)}</td>`; }).join('');
     return `<tr><td class="flavor-name">${escapeHtml(fl.name)}</td>${cells}<td class="${f.reserved===0?'qty-zero':''}">${fmt(f.reserved)}</td><td class="${f.shipped===0?'qty-zero':''}">${fmt(f.shipped)}</td></tr>`;
   }).join('');
+  const packTotals = line.packLevels.map(lv=> lineData.flavors.reduce((s,fl)=>s+packQty(fl.id,lv.id),0));
+  const reservedTotal = lineData.flavors.reduce((s,fl)=>s+fulfilledOf(fl.id).reserved,0);
+  const shippedTotal = lineData.flavors.reduce((s,fl)=>s+fulfilledOf(fl.id).shipped,0);
+  foot.innerHTML = `<tr><td>TOTAL — all flavors</td>${packTotals.map(t=>`<td>${fmt(t)}</td>`).join('')}<td>${fmt(reservedTotal)}</td><td>${fmt(shippedTotal)}</td></tr>`;
 }
 
 function renderLog(){
@@ -458,6 +562,68 @@ document.getElementById('btnPack').onclick = ()=>{ if(lineData.flavors.length===
 document.getElementById('btnFulfill').onclick = ()=>{ if(lineData.flavors.length===0){alert('Add a flavor first.');return;} document.getElementById('fuQty').value=''; document.getElementById('fuRef').value=''; document.getElementById('fuErr').classList.remove('show'); populateAllSelects(); openModal('modalFulfill'); };
 document.getElementById('btnLoss').onclick = ()=>{ if(lineData.flavors.length===0){alert('Add a flavor first.');return;} document.getElementById('lsQty').value=''; document.getElementById('lsReason').value=''; document.getElementById('lsErr').classList.remove('show'); populateLossSelects(); openModal('modalLoss'); };
 document.getElementById('btnAdmin').onclick = ()=>{ document.getElementById('admQty').value=''; document.getElementById('admReason').value=''; document.getElementById('admErr').classList.remove('show'); document.getElementById('admResetErr').classList.remove('show'); document.getElementById('admResetLineName').textContent = pl().name; populateAdminSelects(); openModal('modalAdmin'); };
+document.getElementById('btnBatch').onclick = ()=>{
+  document.getElementById('bcQty').value=''; document.getElementById('bcStage').value=''; document.getElementById('bcNotes').value='';
+  document.getElementById('bcErr').classList.remove('show'); document.getElementById('bcResult').style.display='none';
+  document.getElementById('bcLookupCode').value=''; document.getElementById('bcLookupResult').innerHTML='';
+  populateBatchSelects(); openModal('modalBatch');
+};
+
+function populateBatchSelects(){
+  document.getElementById('bcLine').innerHTML = PRODUCT_LINES.map(l=>`<option value="${l.id}" ${l.id===currentLine?'selected':''}>${escapeHtml(l.name)}</option>`).join('');
+  updateBatchFlavorSelect();
+}
+document.getElementById('bcLine').addEventListener('change', updateBatchFlavorSelect);
+async function updateBatchFlavorSelect(){
+  const lineId = document.getElementById('bcLine').value;
+  const { data } = await sb.from('mi_flavors').select('*').eq('line_id', lineId).order('name');
+  document.getElementById('bcFlavor').innerHTML = (data||[]).map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('') || '<option value="">No flavors yet</option>';
+}
+async function submitCreateBatch(){
+  const lineId = document.getElementById('bcLine').value;
+  const flavorId = document.getElementById('bcFlavor').value;
+  const stage = document.getElementById('bcStage').value.trim();
+  const qty = parseInt(document.getElementById('bcQty').value,10);
+  const notes = document.getElementById('bcNotes').value.trim();
+  const errEl = document.getElementById('bcErr');
+  if(!flavorId){ errEl.textContent='Choose a flavor.'; errEl.classList.add('show'); return; }
+  if(!qty || qty<=0){ errEl.textContent='Enter a quantity greater than 0.'; errEl.classList.add('show'); return; }
+  const { data, error } = await sb.rpc('mi_create_batch', { p_token: session.token, p_line: lineId, p_flavor: flavorId, p_stage_label: stage, p_qty: qty, p_notes: notes, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  const code = data;
+  JsBarcode('#bcBarcode', code, { format:'CODE128', displayValue:true, fontSize:14, height:44, width:1.6, background:'#211d17', lineColor:'#ede6d8' });
+  document.getElementById('bcResultText').textContent = `${qty} units — ${stage}`;
+  document.getElementById('bcResult').style.display='block';
+  document.getElementById('bcResult').dataset.code = code;
+  document.getElementById('bcResult').dataset.label = `${qty} units — ${stage}`;
+  if(currentLine!==DASHBOARD_ID) { await fetchLineData(currentLine); render(); }
+}
+function printBatchLabel(){
+  const code = document.getElementById('bcResult').dataset.code;
+  const label = document.getElementById('bcResult').dataset.label;
+  JsBarcode('#printBarcode', code, { format:'CODE128', displayValue:true, fontSize:12, height:36, width:1.4 });
+  document.getElementById('printLabelText').textContent = label;
+  window.print();
+}
+async function submitLookupBatch(){
+  const code = document.getElementById('bcLookupCode').value.trim();
+  const el = document.getElementById('bcLookupResult');
+  if(!code){ el.innerHTML = '<span style="color:var(--rust);">Enter a batch code.</span>'; return; }
+  const { data, error } = await sb.from('mi_batches').select('*').eq('code', code).maybeSingle();
+  if(error || !data){ el.innerHTML = '<span style="color:var(--rust);">Batch not found.</span>'; return; }
+  const line = PRODUCT_LINES.find(l=>l.id===data.line_id);
+  const { data: flavorRow } = await sb.from('mi_flavors').select('name').eq('id', data.flavor_id).maybeSingle();
+  el.innerHTML = `
+    <div class="dash-row"><span>Product Line</span><b>${escapeHtml(line?line.name:data.line_id)}</b></div>
+    <div class="dash-row"><span>Flavor</span><b>${escapeHtml(flavorRow?flavorRow.name:'—')}</b></div>
+    <div class="dash-row"><span>Stage / Description</span><b>${escapeHtml(data.stage_label||'—')}</b></div>
+    <div class="dash-row"><span>Quantity</span><b>${fmt(data.qty)}</b></div>
+    <div class="dash-row"><span>Created By</span><b>${escapeHtml(data.created_by||'—')}</b></div>
+    <div class="dash-row"><span>Created At</span><b>${new Date(data.created_at).toLocaleString()}</b></div>
+    ${data.notes?`<div class="dash-row"><span>Notes</span><b>${escapeHtml(data.notes)}</b></div>`:''}
+  `;
+}
 
 document.getElementById('lsFlavor').addEventListener('change', updateLossHint);
 document.getElementById('lsSource').addEventListener('change', updateLossHint);
@@ -737,6 +903,32 @@ if('serviceWorker' in navigator){
     <button class="ghost" style="border-color:var(--rust);color:var(--rust);" onclick="submitAdminReset()">Reset This Product Line</button>
   </div>
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAdmin')">Close</button></div>
+</div></div>
+
+<div class="overlay" id="modalBatch"><div class="modal" style="max-width:480px;">
+  <h3>Batches / Barcodes</h3>
+  <div style="border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">
+    <div class="hint" style="margin-bottom:10px;">Create a batch ID for a production run — print it as a sticker to identify and search the batch later.</div>
+    <div class="field"><label>Product Line</label><select id="bcLine"></select></div>
+    <div class="field"><label>Flavor</label><select id="bcFlavor"></select></div>
+    <div class="field"><label>Stage / Description</label><input id="bcStage" placeholder="e.g. Fill — Blue Dream 7/27"></div>
+    <div class="field"><label>Quantity</label><input id="bcQty" type="number" min="1"></div>
+    <div class="field"><label>Notes (optional)</label><input id="bcNotes"></div>
+    <div class="err" id="bcErr"></div>
+    <button class="primary" onclick="submitCreateBatch()">Generate Batch ID</button>
+    <div id="bcResult" style="display:none;margin-top:14px;text-align:center;">
+      <svg id="bcBarcode"></svg>
+      <div class="hint" id="bcResultText" style="margin-top:6px;"></div>
+      <button class="ghost" style="margin-top:8px;" onclick="printBatchLabel()">Print Sticker</button>
+    </div>
+  </div>
+  <div>
+    <div class="hint" style="margin-bottom:10px;">Look up a batch by its code (scan or type it in) to see what it is and where it was in the pipeline when created.</div>
+    <div class="field"><label>Batch Code</label><input id="bcLookupCode" placeholder="e.g. MIB-260727-00001"></div>
+    <button class="ghost" onclick="submitLookupBatch()">Look Up</button>
+    <div id="bcLookupResult" style="margin-top:12px;font-size:13px;"></div>
+  </div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalBatch')">Close</button></div>
 </div></div>
 
 </body>
