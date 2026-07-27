@@ -184,7 +184,8 @@
 
 <div class="overlay" id="modalFlavor"><div class="modal">
   <h3>Add Flavor</h3>
-  <div class="field"><label>Flavor Name</label><input id="flName" placeholder="e.g. Blue Dream"></div>
+  <div class="field"><label>Flavor Name</label><input id="flName" placeholder="e.g. Blue Slushie"></div>
+  <div class="field"><label>Batch Code (auto-suggested, editable)</label><input id="flCode" placeholder="e.g. BS"></div>
   <div class="err" id="flErr">Enter a name.</div>
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalFlavor')">Cancel</button><button class="primary" onclick="submitAddFlavor()">Add</button></div>
 </div></div>
@@ -236,42 +237,46 @@ const SUPABASE_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const PRODUCT_LINES = [
-  { id:'disposables', name:'2G Gen 3 Disposable',
+  { id:'disposables', name:'2G Gen 3 Disposable', batchCode:'GEN3-2G-AIO',
     components:[{id:'hardware',label:'Hardware',scope:'flavor'},{id:'insert',label:'Insert',scope:'flavor'},{id:'packaging',label:'Packaging',scope:'flavor'},{id:'display_shell',label:'Display Shell',scope:'flavor'},{id:'case_shell',label:'Case Shell',scope:'flavor'}],
-    stages:[{id:'fill',label:'Fill',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
+    stages:[{id:'fill',label:'Fill',code:'FILL',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',code:'PACK',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
     baseComponent:null,
     packLevels:[{id:'display',label:'Display',ratio:10,variable:false,extraComponent:'display_shell',extraQty:1},{id:'case',label:'Case',ratio:null,variable:true,extraComponent:'case_shell',extraQty:1}]
   },
-  { id:'mates', name:'Regular Mates',
+  { id:'mates', name:'Regular Mates', batchCode:'MATES',
     components:[{id:'cone',label:'Cone (Joint)',scope:'flavor'},{id:'lid',label:'Lid',scope:'flavor'},{id:'foam',label:'Foam',scope:'flavor'}],
     stages:[], baseComponent:'cone',
     packLevels:[{id:'can',label:'Can',ratio:5,variable:false,extraComponent:'lid',extraQty:1},{id:'display',label:'Display',ratio:25,variable:false,extraComponent:'foam',extraQty:1}]
   },
-  { id:'cart510_1g', name:'1G 510 Cartridge',
+  { id:'cart510_1g', name:'1G 510 Cartridge', batchCode:'GEN3-1G-510',
     components:[{id:'hardware',label:'Hardware',scope:'shared'},{id:'insert',label:'Insert',scope:'flavor'},{id:'packaging',label:'Packaging',scope:'flavor'},{id:'display_shell',label:'Display Shell',scope:'flavor'},{id:'case_shell',label:'Master Case Shell',scope:'flavor'}],
-    stages:[{id:'fill',label:'Fill',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
+    stages:[{id:'fill',label:'Fill',code:'FILL',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',code:'PACK',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
     baseComponent:null,
     packLevels:[{id:'display',label:'Display',ratio:10,variable:false,extraComponent:'display_shell',extraQty:1},{id:'case',label:'Master Case',ratio:10,variable:false,extraComponent:'case_shell',extraQty:1}]
   },
-  { id:'cart510_2g', name:'2G 510 Cartridge',
+  { id:'cart510_2g', name:'2G 510 Cartridge', batchCode:'GEN3-2G-510',
     components:[{id:'hardware',label:'Hardware',scope:'shared'},{id:'insert',label:'Insert',scope:'flavor'},{id:'packaging',label:'Packaging',scope:'flavor'},{id:'display_shell',label:'Display Shell',scope:'flavor'},{id:'case_shell',label:'Master Case Shell',scope:'flavor'}],
-    stages:[{id:'fill',label:'Fill',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
+    stages:[{id:'fill',label:'Fill',code:'FILL',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',code:'PACK',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
     baseComponent:null,
     packLevels:[{id:'display',label:'Display',ratio:10,variable:false,extraComponent:'display_shell',extraQty:1},{id:'case',label:'Master Case',ratio:10,variable:false,extraComponent:'case_shell',extraQty:1}]
   },
-  { id:'melted_diamond_1g', name:'1G Melted Diamond Disposable',
+  { id:'melted_diamond_1g', name:'1G Melted Diamond Disposable', batchCode:'MD-1G-AIO',
     components:[{id:'hardware',label:'Hardware',scope:'flavor'},{id:'insert',label:'Insert',scope:'flavor'},{id:'packaging',label:'Packaging',scope:'flavor'},{id:'display_shell',label:'Display Shell',scope:'flavor'},{id:'case_shell',label:'Case Shell',scope:'flavor'}],
-    stages:[{id:'fill',label:'Fill',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
+    stages:[{id:'fill',label:'Fill',code:'FILL',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',code:'PACK',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
     baseComponent:null,
     packLevels:[{id:'display',label:'Display',ratio:10,variable:false,extraComponent:'display_shell',extraQty:1},{id:'case',label:'Case',ratio:5,variable:false,extraComponent:'case_shell',extraQty:1}]
   },
-  { id:'live_resin_1g', name:'1G Live Resin Disposable',
+  { id:'live_resin_1g', name:'1G Live Resin Disposable', batchCode:'LR-1G-AIO',
     components:[{id:'hardware',label:'Hardware',scope:'flavor'},{id:'insert',label:'Insert',scope:'flavor'},{id:'packaging',label:'Packaging',scope:'flavor'},{id:'display_shell',label:'Display Shell',scope:'flavor'},{id:'case_shell',label:'Case Shell',scope:'flavor'}],
-    stages:[{id:'fill',label:'Fill',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
+    stages:[{id:'fill',label:'Fill',code:'FILL',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',code:'PACK',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
     baseComponent:null,
     packLevels:[{id:'display',label:'Display',ratio:10,variable:false,extraComponent:'display_shell',extraQty:1},{id:'case',label:'Case',ratio:5,variable:false,extraComponent:'case_shell',extraQty:1}]
   }
 ];
+const TESTING_CODE = 'TES';
+function initials(name){ return (name||'').trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,4) || 'XX'; }
+function todayMMDDYY(){ const d=new Date(); return String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+String(d.getFullYear()).slice(-2); }
+
 
 let session = null; // {token, name, id}
 let currentLine = PRODUCT_LINES[0].id;
@@ -555,7 +560,8 @@ function populateAllSelects(){
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 
-document.getElementById('btnAddFlavor').onclick = ()=>{ document.getElementById('flName').value=''; document.getElementById('flErr').classList.remove('show'); openModal('modalFlavor'); };
+document.getElementById('btnAddFlavor').onclick = ()=>{ document.getElementById('flName').value=''; document.getElementById('flCode').value=''; document.getElementById('flErr').classList.remove('show'); openModal('modalFlavor'); };
+document.getElementById('flName').addEventListener('input', ()=>{ document.getElementById('flCode').value = initials(document.getElementById('flName').value); });
 document.getElementById('btnReceive').onclick = ()=>{ document.getElementById('recQty').value=''; document.getElementById('recErr').classList.remove('show'); populateAllSelects(); openModal('modalReceive'); };
 document.getElementById('btnAdvance').onclick = ()=>{ if(lineData.flavors.length===0){alert('Add a flavor first.');return;} document.getElementById('adQty').value=''; document.getElementById('adErr').classList.remove('show'); populateAllSelects(); openModal('modalAdvance'); };
 document.getElementById('btnPack').onclick = ()=>{ if(lineData.flavors.length===0){alert('Add a flavor first.');return;} document.getElementById('pkQty').value=''; document.getElementById('pkVarQty').value=''; document.getElementById('pkErr').classList.remove('show'); populateAllSelects(); openModal('modalPack'); };
@@ -661,7 +667,9 @@ async function submitLoss(){
   });
   if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
+  const flavor = lineData.flavors.find(f=>f.id===flId);
   await fetchLineData(currentLine); render(); closeModal('modalLoss');
+  await autoGenerateBatch(pl(), flavor, TESTING_CODE, qty);
 }
 
 function populateAdminSelects(){
@@ -772,8 +780,9 @@ function updateFulfillHint(){
 // ---------- SUBMIT HANDLERS (call Supabase RPCs) ----------
 async function submitAddFlavor(){
   const name = document.getElementById('flName').value.trim();
+  const code = document.getElementById('flCode').value.trim().toUpperCase();
   if(!name){ document.getElementById('flErr').classList.add('show'); return; }
-  const { error } = await sb.rpc('mi_add_flavor', { p_token: session.token, p_line: currentLine, p_name: name });
+  const { error } = await sb.rpc('mi_add_flavor', { p_token: session.token, p_line: currentLine, p_name: name, p_code: code || initials(name) });
   if(error){ document.getElementById('flErr').textContent = error.message; document.getElementById('flErr').classList.add('show'); return; }
   await fetchLineData(currentLine); render(); closeModal('modalFlavor');
 }
@@ -810,6 +819,30 @@ async function submitAdvance(){
   if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
   await fetchLineData(currentLine); render(); closeModal('modalAdvance');
+  if(stage.code){
+    const fl = lineData.flavors.find(f=>f.id===flId);
+    await autoGenerateBatch(line, fl, stage.code, qty);
+  }
+}
+
+async function autoGenerateBatch(line, flavor, stageCode, qty){
+  const flavorCode = (flavor.code || initials(flavor.name)).toUpperCase();
+  const { data, error } = await sb.rpc('mi_generate_batch_code', {
+    p_token: session.token, p_line: line.id, p_flavor: flavor.id,
+    p_line_code: line.batchCode, p_flavor_code: flavorCode, p_stage_code: stageCode,
+    p_qty: qty, p_notes: '', p_by: session.name
+  });
+  if(error){ console.error('Batch code generation failed', error.message); return; }
+  showBatchResult(data, `${qty} units — ${stageCode}`);
+}
+function showBatchResult(code, labelText){
+  populateBatchSelects();
+  openModal('modalBatch');
+  JsBarcode('#bcBarcode', code, { format:'CODE128', displayValue:true, fontSize:14, height:44, width:1.6, background:'#211d17', lineColor:'#ede6d8' });
+  document.getElementById('bcResultText').textContent = labelText;
+  document.getElementById('bcResult').style.display='block';
+  document.getElementById('bcResult').dataset.code = code;
+  document.getElementById('bcResult').dataset.label = labelText;
 }
 
 async function submitPack(){
