@@ -189,13 +189,15 @@
     <div class="tblwrap"><table id="batchListTable"><thead><tr><th>Batch Code</th><th>Flavor</th><th>Fill</th><th>Package</th><th>Inventory</th><th>Reserved</th><th>Shipped</th><th>Test Loss</th><th>Waste Loss</th><th>Created</th></tr></thead><tbody id="batchListBody"></tbody></table></div>
   </section>
 
-  <section class="block" id="distributionSection" style="display:none;">
-    <h2 class="head">Distribution</h2>
-
+  <section class="block" id="fulfillmentSection" style="display:none;">
+    <h2 class="head">Fulfillment</h2>
     <h3 style="font-size:12.5px;color:var(--dim);margin:14px 0 8px;">Pending Orders — need QC & Labeling</h3>
     <div class="tblwrap"><table id="pendingOrdersTable"><thead><tr><th>Order</th><th>Units Reserved</th><th>Created</th><th></th></tr></thead><tbody id="pendingOrdersBody"></tbody></table></div>
+  </section>
 
-    <h3 style="font-size:12.5px;color:var(--dim);margin:18px 0 8px;">Available for Distribution — passed QC & Labeling, needs manifest</h3>
+  <section class="block" id="distributionSection" style="display:none;">
+    <h2 class="head">Distribution</h2>
+    <h3 style="font-size:12.5px;color:var(--dim);margin:14px 0 8px;">Available for Distribution — passed QC & Labeling, needs manifest</h3>
     <div class="tblwrap"><table id="distOrdersTable"><thead><tr><th>Order</th><th>Units</th><th>Displays Used</th><th>Cases Used</th><th>QC By</th><th></th></tr></thead><tbody id="distOrdersBody"></tbody></table></div>
 
     <h3 style="font-size:12.5px;color:var(--dim);margin:18px 0 8px;">Shipped — history</h3>
@@ -408,6 +410,7 @@
 
 
 
+
 <script>
 const SUPABASE_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
@@ -567,7 +570,7 @@ async function render(){
 
   const isBatch = pl().batchModel;
   ['stageSection','sellSection','packSection'].forEach(id=> document.getElementById(id).style.display = isBatch ? 'none' : '');
-  ['batchFlavorTotalsSection','batchListSection','distributionSection'].forEach(id=> document.getElementById(id).style.display = isBatch ? '' : 'none');
+  ['batchFlavorTotalsSection','batchListSection','fulfillmentSection','distributionSection'].forEach(id=> document.getElementById(id).style.display = isBatch ? '' : 'none');
   ['btnAdvance','btnPack','btnFulfill','btnLoss'].forEach(id=> document.getElementById(id).style.display = isBatch ? 'none' : 'inline-block');
   ['btnAdvanceProduction','btnFulfillment'].forEach(id=> document.getElementById(id).style.display = isBatch ? 'inline-block' : 'none');
 
@@ -581,6 +584,7 @@ async function render(){
     await fetchBatchData(currentLine);
     renderBatchTables();
     await fetchOrders(currentLine);
+    await renderFulfillmentTable();
     await renderDistributionTables();
   } else {
     renderBacklog();
@@ -756,7 +760,7 @@ async function submitFulfillment(){
   const { error } = await sb.rpc('mi_reserve_to_order', { p_token: session.token, p_line: currentLine, p_batch_code: code, p_order_ref: orderRef, p_qty: qty, p_by: session.name });
   if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
-  await fetchBatchData(currentLine); await fetchOrders(currentLine); renderBatchTables(); renderDistributionTables(); renderLog(); closeModal('modalFulfillment');
+  await fetchBatchData(currentLine); await fetchOrders(currentLine); renderBatchTables(); renderFulfillmentTable(); renderLog(); closeModal('modalFulfillment');
 }
 
 // ---------- DISTRIBUTION (order-level QC & Labeling, then Manifest/Ship) ----------
@@ -772,7 +776,7 @@ async function orderUnitsReserved(orderId){
   const { data } = await sb.from('mi_order_batches').select('qty').eq('order_id', orderId);
   return (data||[]).reduce((s,r)=>s+r.qty,0);
 }
-async function renderDistributionTables(){
+async function renderFulfillmentTable(){
   const pendBody = document.getElementById('pendingOrdersBody');
   if(ordersData.pending.length===0){ pendBody.innerHTML = `<tr><td colspan="4"><div class="empty">No pending orders.</div></td></tr>`; }
   else {
@@ -782,6 +786,8 @@ async function renderDistributionTables(){
     }));
     pendBody.innerHTML = rows.join('');
   }
+}
+async function renderDistributionTables(){
   const distBody = document.getElementById('distOrdersBody');
   if(ordersData.qcLabeled.length===0){ distBody.innerHTML = `<tr><td colspan="5"><div class="empty">No orders available for distribution.</div></td></tr>`; }
   else {
@@ -820,7 +826,7 @@ async function submitOrderQc(){
   const { error } = await sb.rpc('mi_order_qc_label', { p_token: session.token, p_order_id: currentQcOrderId, p_units_in_displays: unitsDisplay, p_displays_used: displaysUsed, p_units_in_cases: unitsCase, p_cases_used: casesUsed, p_by: session.name });
   if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
-  await fetchOrders(currentLine); renderDistributionTables(); renderLog(); closeModal('modalOrderQc');
+  await fetchOrders(currentLine); renderFulfillmentTable(); renderDistributionTables(); renderLog(); closeModal('modalOrderQc');
 }
 let currentManifestOrderId = null;
 function openManifest(orderId){
