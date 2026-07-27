@@ -33,6 +33,9 @@
   .tab{padding:9px 16px;font-size:13.5px;font-weight:600;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;}
   .tab.active{color:var(--amber);border-bottom-color:var(--amber);}
 
+  .line-select-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
+  .line-select{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;font-weight:600;min-width:220px;}
+
   .toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
   button.primary,button.ghost{font-size:13px;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600;border:1px solid var(--line);}
   button.primary{background:var(--amber);color:#1a1509;border-color:var(--amber);}
@@ -128,7 +131,11 @@
   <div class="banner">Live, shared data — every action here updates for everyone signed in.</div>
   <div class="error-banner" id="errorBanner"></div>
 
-  <div class="tabs" id="lineTabs"></div>
+  <div class="line-select-row">
+    <select id="lineSelect" class="line-select"></select>
+    <button class="ghost" id="btnReports">Reports / Audit Log</button>
+    <button class="ghost" id="btnPhysicalAudit">Physical Audit</button>
+  </div>
   <div class="shared-strip" id="sharedStrip"></div>
   <div id="backlogPanel"></div>
 
@@ -365,11 +372,13 @@ function fulfilledOf(flId){ return lineData.fulfilled[flId]||{reserved:0,shipped
 // ---------- RENDER ----------
 const DASHBOARD_ID = '__dashboard__';
 function renderTabs(){
-  const tabsHtml = [`<div class="tab ${currentLine===DASHBOARD_ID?'active':''}" onclick="switchLine('${DASHBOARD_ID}')">📊 Dashboard</div>`]
-    .concat(PRODUCT_LINES.map(l=>`<div class="tab ${l.id===currentLine?'active':''}" onclick="switchLine('${l.id}')">${escapeHtml(l.name)}</div>`));
-  document.getElementById('lineTabs').innerHTML = tabsHtml.join('');
+  const sel = document.getElementById('lineSelect');
+  const options = [`<option value="${DASHBOARD_ID}" ${currentLine===DASHBOARD_ID?'selected':''}>📊 Dashboard</option>`]
+    .concat(PRODUCT_LINES.map(l=>`<option value="${l.id}" ${l.id===currentLine?'selected':''}>${escapeHtml(l.name)}</option>`));
+  sel.innerHTML = options.join('');
   document.getElementById('lineSub').textContent = currentLine===DASHBOARD_ID ? 'Executive summary — all product lines' : (pl().stages.length ? 'Components → Production Pipeline → Sellable → Packing' : 'Components → Sellable → Packing');
 }
+document.getElementById('lineSelect').addEventListener('change', (e)=> switchLine(e.target.value));
 async function switchLine(id){
   currentLine = id;
   if(id===DASHBOARD_ID){ await fetchDashboardData(); render(); return; }
@@ -545,6 +554,150 @@ function renderLog(){
   if(lineData.transactions.length===0){ el.innerHTML = `<div class="empty">No activity logged yet for ${escapeHtml(pl().name)}.</div>`; return; }
   el.innerHTML = lineData.transactions.map(t=>`<div class="log-item"><div class="log-time">${new Date(t.ts).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</div><div class="log-body"><b>${escapeHtml(t.by_name||'Unknown')}</b> ${escapeHtml(t.body)}</div></div>`).join('');
 }
+
+// ---------- CSV HELPER ----------
+function downloadCsv(rows, filename){
+  const csv = rows.map(r=> r.map(v=> `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// ---------- REPORTS / FULL AUDIT LOG ----------
+let auditLogFull = [];
+async function downloadCsvReport(){
+  if(Object.keys(dashboardData).length===0) await fetchDashboardData();
+  const rows = [['Product Line','Metric','Value']];
+  PRODUCT_LINES.forEach(line=>{
+    const d = dashboardData[line.id]; if(!d) return;
+    line.components.forEach(c=> rows.push([line.name, c.label+(c.scope==='shared'?' (shared)':'')+' available', d.compTotals[c.id]]));
+    rows.push([line.name, 'In Production (WIP)', d.inProduction]);
+    rows.push([line.name, 'Sellable Units', d.sellableTotal]);
+    line.packLevels.forEach(l=> rows.push([line.name, l.label+'s packed', d.packTotals[l.id]]));
+    rows.push([line.name, 'Reserved', d.reserved]);
+    rows.push([line.name, 'Shipped', d.shipped]);
+  });
+  downloadCsv(rows, `mi-inventory-report-${new Date().toISOString().slice(0,10)}.csv`);
+}
+async function openReportsModal(){
+  openModal('modalReports');
+  document.getElementById('auditSearch').value='';
+  const { data, error } = await sb.from('mi_transactions').select('*').order('ts',{ascending:false}).limit(500);
+  if(error){ document.getElementById('auditLogList').innerHTML = `<div class="empty">Could not load: ${escapeHtml(error.message)}</div>`; return; }
+  auditLogFull = data || [];
+  renderAuditLog();
+}
+function renderAuditLog(){
+  const q = document.getElementById('auditSearch').value.trim().toLowerCase();
+  const el = document.getElementById('auditLogList');
+  let rows = auditLogFull;
+  if(q) rows = rows.filter(t=> (t.body||'').toLowerCase().includes(q) || (t.by_name||'').toLowerCase().includes(q) || (t.line_id||'').toLowerCase().includes(q));
+  if(rows.length===0){ el.innerHTML = '<div class="empty">No matching activity.</div>'; return; }
+  el.innerHTML = rows.slice(0,300).map(t=>{
+    const line = PRODUCT_LINES.find(l=>l.id===t.line_id);
+    return `<div class="log-item"><div class="log-time">${new Date(t.ts).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</div><div class="log-body"><b>${escapeHtml(t.by_name||'Unknown')}</b> [${escapeHtml(line?line.name:t.line_id)}] ${escapeHtml(t.body)}</div></div>`;
+  }).join('');
+}
+
+// ---------- PHYSICAL AUDIT ----------
+let currentAuditItems = []; let currentAuditLineId = null; let currentAuditFlavor = null;
+async function fetchAuditFlavorData(lineId, flavorId){
+  const [sharedR, compR, stageR, sellR, packR, fulfilR] = await Promise.all([
+    sb.from('mi_shared_components').select('*').eq('line_id', lineId),
+    sb.from('mi_flavor_components').select('*').eq('line_id', lineId).eq('flavor_id', flavorId),
+    sb.from('mi_stage_stock').select('*').eq('line_id', lineId).eq('flavor_id', flavorId),
+    sb.from('mi_sellable').select('*').eq('line_id', lineId).eq('flavor_id', flavorId),
+    sb.from('mi_pack_stock').select('*').eq('line_id', lineId).eq('flavor_id', flavorId),
+    sb.from('mi_fulfilled').select('*').eq('line_id', lineId).eq('flavor_id', flavorId)
+  ]);
+  const shared = {}; (sharedR.data||[]).forEach(r=>shared[r.comp_id]=r.qty);
+  const comps = {}; (compR.data||[]).forEach(r=>comps[r.comp_id]=r.qty);
+  const stages = {}; (stageR.data||[]).forEach(r=>stages[r.stage_id]=r.qty);
+  const sellable = (sellR.data&&sellR.data[0]) ? sellR.data[0].qty : 0;
+  const packs = {}; (packR.data||[]).forEach(r=>packs[r.level_id]=r.qty);
+  const fulfilled = (fulfilR.data&&fulfilR.data[0]) ? fulfilR.data[0] : {reserved:0,shipped:0};
+  return { shared, comps, stages, sellable, packs, fulfilled };
+}
+function buildAuditItems(line, d){
+  const items = [];
+  line.components.filter(c=>c.scope==='shared').forEach(c=> items.push({type:'shared_component', id:c.id, label:c.label+' (shared)', qty:d.shared[c.id]||0}));
+  line.components.filter(c=>c.scope!=='shared').forEach(c=> items.push({type:'flavor_component', id:c.id, label:c.label, qty:d.comps[c.id]||0}));
+  line.stages.forEach(s=> items.push({type:'stage', id:s.id, label:s.label+' stock', qty:d.stages[s.id]||0}));
+  items.push({type:'sellable', id:'', label:'Sellable units', qty: line.stages.length===0 ? (d.comps[line.baseComponent]||0) : d.sellable});
+  line.packLevels.forEach(l=> items.push({type:'pack', id:l.id, label:l.label+'s packed', qty:d.packs[l.id]||0}));
+  items.push({type:'reserved', id:'', label:'Reserved', qty:d.fulfilled.reserved||0});
+  items.push({type:'shipped', id:'', label:'Shipped', qty:d.fulfilled.shipped||0});
+  return items;
+}
+function populatePaSelects(){
+  document.getElementById('paLine').innerHTML = PRODUCT_LINES.map(l=>`<option value="${l.id}" ${l.id===currentLine?'selected':''}>${escapeHtml(l.name)}</option>`).join('');
+  updatePaFlavorSelect();
+}
+document.getElementById('paLine').addEventListener('change', updatePaFlavorSelect);
+document.getElementById('paFlavor').addEventListener('change', renderPhysicalAuditTable);
+async function updatePaFlavorSelect(){
+  const lineId = document.getElementById('paLine').value;
+  const { data } = await sb.from('mi_flavors').select('*').eq('line_id',lineId).order('name');
+  document.getElementById('paFlavor').innerHTML = (data||[]).map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('') || '<option value="">No flavors yet</option>';
+  await renderPhysicalAuditTable();
+}
+async function renderPhysicalAuditTable(){
+  const lineId = document.getElementById('paLine').value;
+  const flavorId = document.getElementById('paFlavor').value;
+  const wrap = document.getElementById('paTableWrap');
+  if(!flavorId){ wrap.innerHTML=''; document.getElementById('paApplyBtn').style.display='none'; return; }
+  const line = PRODUCT_LINES.find(p=>p.id===lineId);
+  const d = await fetchAuditFlavorData(lineId, flavorId);
+  currentAuditItems = buildAuditItems(line, d);
+  currentAuditLineId = lineId; currentAuditFlavor = flavorId;
+  wrap.innerHTML = `<table><thead><tr><th>Item</th><th>System Qty</th><th>Counted Qty</th><th>Variance</th></tr></thead><tbody>${
+    currentAuditItems.map((it,i)=>`<tr><td>${escapeHtml(it.label)}</td><td>${fmt(it.qty)}</td><td><input type="number" style="width:90px;" data-idx="${i}" oninput="updateAuditVariance(${i})"></td><td id="paVar${i}">—</td></tr>`).join('')
+  }</tbody></table>`;
+  document.getElementById('paApplyBtn').style.display = (session.role==='admin') ? 'inline-block' : 'none';
+}
+function updateAuditVariance(i){
+  const input = document.querySelector(`input[data-idx="${i}"]`);
+  const cell = document.getElementById('paVar'+i);
+  if(input.value===''){ cell.textContent='—'; cell.style.color=''; return; }
+  const variance = parseInt(input.value,10) - currentAuditItems[i].qty;
+  cell.textContent = (variance>0?'+':'')+variance;
+  cell.style.color = variance===0 ? 'var(--dim)' : 'var(--rust)';
+}
+async function applyPhysicalAudit(){
+  const errEl = document.getElementById('paErr');
+  let applied = 0;
+  for(let i=0;i<currentAuditItems.length;i++){
+    const input = document.querySelector(`input[data-idx="${i}"]`);
+    if(!input || input.value==='') continue;
+    const newQty = parseInt(input.value,10);
+    if(newQty===currentAuditItems[i].qty) continue;
+    const it = currentAuditItems[i];
+    const { error } = await sb.rpc('mi_admin_adjust', {
+      p_token: session.token, p_line: currentAuditLineId, p_flavor: it.type==='shared_component'?null:currentAuditFlavor,
+      p_target_type: it.type, p_target_id: it.id||null, p_new_qty: newQty,
+      p_reason: `Physical audit ${new Date().toLocaleDateString()}`, p_by: session.name
+    });
+    if(error){ errEl.textContent = `Failed on ${it.label}: ${error.message}`; errEl.classList.add('show'); return; }
+    applied++;
+  }
+  errEl.classList.remove('show');
+  await renderPhysicalAuditTable();
+  if(currentLine===currentAuditLineId){ await fetchLineData(currentLine); render(); }
+  alert(`Applied ${applied} correction(s).`);
+}
+function downloadAuditCsv(){
+  const rows = [['Item','System Qty','Counted Qty','Variance']];
+  currentAuditItems.forEach((it,i)=>{
+    const input = document.querySelector(`input[data-idx="${i}"]`);
+    const counted = input && input.value!=='' ? input.value : '';
+    const variance = counted!=='' ? (parseInt(counted,10)-it.qty) : '';
+    rows.push([it.label, it.qty, counted, variance]);
+  });
+  downloadCsv(rows, `physical-audit-${currentAuditLineId}-${Date.now()}.csv`);
+}
+document.getElementById('btnReports').onclick = openReportsModal;
+document.getElementById('btnPhysicalAudit').onclick = ()=>{ document.getElementById('paErr').classList.remove('show'); populatePaSelects(); openModal('modalPhysicalAudit'); };
 
 function populateAllSelects(){
   const line = pl();
@@ -962,6 +1115,36 @@ if('serviceWorker' in navigator){
     <div id="bcLookupResult" style="margin-top:12px;font-size:13px;"></div>
   </div>
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalBatch')">Close</button></div>
+</div></div>
+
+<div class="overlay" id="modalReports"><div class="modal" style="max-width:600px;">
+  <h3>Reports / Audit Log</h3>
+  <div style="border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:16px;">
+    <div class="hint" style="margin-bottom:10px;">Download a full snapshot of every product line — components, production, sellable, and packed totals — as a spreadsheet.</div>
+    <button class="primary" onclick="downloadCsvReport()">Download Report (CSV)</button>
+  </div>
+  <div>
+    <div class="hint" style="margin-bottom:10px;">Full activity history across every product line. Search by name, flavor, or keyword.</div>
+    <div class="field"><input id="auditSearch" placeholder="Search (e.g. a name, 'ADMIN ADJUST', a flavor)..." oninput="renderAuditLog()"></div>
+    <div id="auditLogList" style="max-height:400px;overflow-y:auto;background:var(--panel2);border:1px solid var(--line);border-radius:8px;"></div>
+  </div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalReports')">Close</button></div>
+</div></div>
+
+<div class="overlay" id="modalPhysicalAudit"><div class="modal" style="max-width:560px;">
+  <h3>Physical Audit</h3>
+  <div class="hint" style="margin-bottom:10px;">Count what's actually on the shelf/floor for one flavor, enter it below, and see the variance against the system. Leave a box blank to skip it.</div>
+  <div class="field"><label>Product Line</label><select id="paLine"></select></div>
+  <div class="field"><label>Flavor</label><select id="paFlavor"></select></div>
+  <div id="paTableWrap" class="tblwrap" style="margin-top:10px;"></div>
+  <div class="err" id="paErr"></div>
+  <div class="modal-actions" style="justify-content:space-between;">
+    <button class="ghost" onclick="downloadAuditCsv()">Export Count Sheet (CSV)</button>
+    <div style="display:flex;gap:8px;">
+      <button class="ghost" onclick="closeModal('modalPhysicalAudit')">Close</button>
+      <button class="primary" id="paApplyBtn" style="display:none;" onclick="applyPhysicalAudit()">Apply Corrections</button>
+    </div>
+  </div>
 </div></div>
 
 </body>
