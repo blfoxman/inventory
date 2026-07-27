@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MI Inventory Flow</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#17140f">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --bg:#17140f; --panel:#211d17; --panel2:#2a251d; --line:#3a3226;
+    --text:#ede6d8; --dim:#a89a82; --amber:#e0a838; --amber-dim:#8a6a26;
+    --sage:#8ea377; --rust:#c1573f; --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;}
+  #app{max-width:1240px;margin:0 auto;padding:20px 16px 80px;}
+  header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+  h1{font-size:20px;margin:0;font-weight:700;} h1 span{color:var(--amber);}
+  .sub{color:var(--dim);font-size:12.5px;margin-top:2px;}
+  .who{display:flex;align-items:center;gap:10px;font-size:13px;}
+  .who b{color:var(--amber);}
+  .banner{background:rgba(224,168,56,.1);border:1px solid var(--amber-dim);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--amber);margin-bottom:16px;}
+  .error-banner{background:rgba(193,87,63,.12);border:1px solid var(--rust);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--rust);margin-bottom:16px;display:none;}
+  .error-banner.show{display:block;}
+
+  .tabs{display:flex;gap:6px;margin-bottom:16px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .tab{padding:9px 16px;font-size:13.5px;font-weight:600;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;}
+  .tab.active{color:var(--amber);border-bottom-color:var(--amber);}
+
+  .toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  button.primary,button.ghost{font-size:13px;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600;border:1px solid var(--line);}
+  button.primary{background:var(--amber);color:#1a1509;border-color:var(--amber);}
+  button.primary:hover{filter:brightness(1.08);}
+  button.ghost{background:transparent;color:var(--text);}
+  button.ghost:hover{background:var(--panel2);}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+
+  .shared-strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+  .shared-chip{background:var(--panel);border:1px solid #5c7a8a;border-radius:8px;padding:8px 12px;font-size:12.5px;}
+  .shared-chip b{color:var(--amber);font-size:14px;}
+
+  .backlog{background:var(--panel);border:1px solid var(--rust);border-radius:var(--radius);margin-bottom:20px;overflow:hidden;}
+  .backlog h2{margin:0;padding:12px 14px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--rust);background:rgba(193,87,63,.1);border-bottom:1px solid var(--line);}
+  .backlog-item{padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px;}
+  .backlog-item:last-child{border-bottom:none;}
+  .backlog-item b{color:var(--text);}
+  .backlog-item .age{color:var(--rust);font-weight:600;}
+
+  section.block{margin-top:24px;}
+  h2.head{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--dim);margin:0 0 10px;}
+
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--dim);padding:9px 10px;border-bottom:1px solid var(--line);background:var(--panel2);white-space:nowrap;}
+  tbody td{padding:9px 10px;font-size:13px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--panel2);}
+  .flavor-name{font-weight:600;}
+  .qty-zero{color:#5f5747;}
+  .empty{padding:26px 16px;text-align:center;color:var(--dim);font-size:13.5px;}
+  .tblwrap{overflow-x:auto;}
+
+  .log-item{display:flex;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:12.5px;}
+  .log-item:last-child{border-bottom:none;}
+  .log-time{color:var(--dim);white-space:nowrap;min-width:110px;}
+  .log-body b{color:var(--amber);}
+
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;z-index:50;}
+  .overlay.show{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;max-width:460px;padding:20px;}
+  .modal h3{margin:0 0 14px;font-size:15px;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:11.5px;color:var(--dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;}
+  .field select,.field input,.field textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13.5px;font-family:inherit;}
+  .hint{font-size:11.5px;color:var(--dim);margin-top:4px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+  .err{color:var(--rust);font-size:12px;margin-top:6px;display:none;}
+  .err.show{display:block;}
+
+  #loginScreen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;}
+  .login-box{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;max-width:360px;padding:28px;}
+  .login-box h1{margin-bottom:4px;}
+  .login-box .sub{margin-bottom:20px;}
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <h1>MI Inventory <span>Flow</span></h1>
+    <div class="sub">Sign in to continue</div>
+    <div class="field"><label>Email</label><input id="loginEmail" type="email"></div>
+    <div class="field"><label>Password</label><input id="loginPassword" type="password"></div>
+    <div class="err" id="loginErr"></div>
+    <button class="primary" style="width:100%;margin-top:8px;" onclick="submitLogin()">Sign In</button>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+  <header>
+    <div>
+      <h1>MI Inventory <span>Flow</span></h1>
+      <div class="sub" id="lineSub"></div>
+    </div>
+    <div class="who"><span>Signed in as <b id="whoName"></b></span><button class="ghost" onclick="logout()">Log out</button></div>
+  </header>
+
+  <div class="banner">Live, shared data — every action here updates for everyone signed in.</div>
+  <div class="error-banner" id="errorBanner"></div>
+
+  <div class="tabs" id="lineTabs"></div>
+  <div class="shared-strip" id="sharedStrip"></div>
+  <div id="backlogPanel"></div>
+
+  <div class="toolbar">
+    <button class="primary" id="btnAddFlavor">Add Flavor</button>
+    <button class="ghost" id="btnReceive">Receive Components</button>
+    <button class="ghost" id="btnAdvance">Advance Production</button>
+    <button class="ghost" id="btnPack">Pack</button>
+    <button class="ghost" id="btnFulfill">Reserve / Ship</button>
+  </div>
+
+  <section class="block">
+    <h2 class="head" id="compHeadTitle">Components on Hand (per flavor)</h2>
+    <div class="tblwrap"><table id="compTable"><thead><tr id="compHead"></tr></thead><tbody id="compBody"></tbody></table></div>
+  </section>
+
+  <section class="block" id="stageSection" style="display:none;">
+    <h2 class="head">Production Pipeline</h2>
+    <div class="tblwrap"><table id="stageTable"><thead><tr id="stageHead"></tr></thead><tbody id="stageBody"></tbody></table></div>
+  </section>
+
+  <section class="block">
+    <h2 class="head" id="sellableHead">Sellable Units</h2>
+    <div class="tblwrap"><table id="sellTable"><thead><tr><th>Flavor</th><th>Available to Pack</th></tr></thead><tbody id="sellBody"></tbody></table></div>
+  </section>
+
+  <section class="block">
+    <h2 class="head">Packing Levels</h2>
+    <div class="tblwrap"><table id="packTable"><thead><tr id="packHead"></tr></thead><tbody id="packBody"></tbody></table></div>
+  </section>
+
+  <section class="block">
+    <h2 class="head">Recent Activity</h2>
+    <div id="logList" style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);"></div>
+  </section>
+</div>
+
+<div class="overlay" id="modalFlavor"><div class="modal">
+  <h3>Add Flavor</h3>
+  <div class="field"><label>Flavor Name</label><input id="flName" placeholder="e.g. Blue Dream"></div>
+  <div class="err" id="flErr">Enter a name.</div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalFlavor')">Cancel</button><button class="primary" onclick="submitAddFlavor()">Add</button></div>
+</div></div>
+
+<div class="overlay" id="modalReceive"><div class="modal">
+  <h3>Receive Components</h3>
+  <div class="field"><label>Component</label><select id="recComp"></select></div>
+  <div class="field" id="recFlavorWrap"><label>Flavor</label><select id="recFlavor"></select></div>
+  <div class="field"><label>Quantity Received</label><input id="recQty" type="number" min="1"></div>
+  <div class="err" id="recErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalReceive')">Cancel</button><button class="primary" onclick="submitReceive()">Receive</button></div>
+</div></div>
+
+<div class="overlay" id="modalAdvance"><div class="modal">
+  <h3>Advance Production</h3>
+  <div class="field"><label>Flavor</label><select id="adFlavor"></select></div>
+  <div class="field"><label>Stage</label><select id="adStage"></select></div>
+  <div class="field"><label>Quantity</label><input id="adQty" type="number" min="1"></div>
+  <div class="hint" id="adHint"></div>
+  <div class="err" id="adErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAdvance')">Cancel</button><button class="primary" onclick="submitAdvance()">Log</button></div>
+</div></div>
+
+<div class="overlay" id="modalPack"><div class="modal">
+  <h3>Pack</h3>
+  <div class="field"><label>Flavor</label><select id="pkFlavor"></select></div>
+  <div class="field"><label>Level</label><select id="pkLevel"></select></div>
+  <div class="field" id="pkQtyWrap"><label>Number of Packs</label><input id="pkQty" type="number" min="1"></div>
+  <div class="field" id="pkVarWrap" style="display:none;"><label>Units Going Into This Pack</label><input id="pkVarQty" type="number" min="1"></div>
+  <div class="hint" id="pkHint"></div>
+  <div class="err" id="pkErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalPack')">Cancel</button><button class="primary" onclick="submitPack()">Pack</button></div>
+</div></div>
+
+<div class="overlay" id="modalFulfill"><div class="modal">
+  <h3>Reserve / Ship</h3>
+  <div class="field"><label>Flavor</label><select id="fuFlavor"></select></div>
+  <div class="field"><label>Action</label><select id="fuAction"><option value="reserve">Reserve for Order</option><option value="ship">Ship / Fulfill</option></select></div>
+  <div class="field"><label>Quantity</label><input id="fuQty" type="number" min="1"></div>
+  <div class="field"><label>Order Ref (optional)</label><input id="fuRef" placeholder="e.g. Order #8821"></div>
+  <div class="hint" id="fuHint"></div>
+  <div class="err" id="fuErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalFulfill')">Cancel</button><button class="primary" onclick="submitFulfill()">Log</button></div>
+</div></div>
+
+<script>
+const SUPABASE_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const PRODUCT_LINES = [
+  { id:'disposables', name:'2G Gen 3 Disposable',
+    components:[{id:'hardware',label:'Hardware',scope:'flavor'},{id:'insert',label:'Insert',scope:'flavor'},{id:'packaging',label:'Packaging',scope:'flavor'},{id:'display_shell',label:'Display Shell',scope:'flavor'},{id:'case_shell',label:'Case Shell',scope:'flavor'}],
+    stages:[{id:'fill',label:'Fill',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
+    baseComponent:null,
+    packLevels:[{id:'display',label:'Display',ratio:10,variable:false,extraComponent:'display_shell',extraQty:1},{id:'case',label:'Case',ratio:null,variable:true,extraComponent:'case_shell',extraQty:1}]
+  },
+  { id:'mates', name:'Regular Mates',
+    components:[{id:'cone',label:'Cone (Joint)',scope:'flavor'},{id:'lid',label:'Lid',scope:'flavor'},{id:'foam',label:'Foam',scope:'flavor'}],
+    stages:[], baseComponent:'cone',
+    packLevels:[{id:'can',label:'Can',ratio:5,variable:false,extraComponent:'lid',extraQty:1},{id:'display',label:'Display',ratio:25,variable:false,extraComponent:'foam',extraQty:1}]
+  },
+  { id:'cart510_1g', name:'1G 510 Cartridge',
+    components:[{id:'hardware',label:'Hardware',scope:'shared'},{id:'insert',label:'Insert',scope:'flavor'},{id:'packaging',label:'Packaging',scope:'flavor'},{id:'display_shell',label:'Display Shell',scope:'flavor'},{id:'case_shell',label:'Master Case Shell',scope:'flavor'}],
+    stages:[{id:'fill',label:'Fill',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
+    baseComponent:null,
+    packLevels:[{id:'display',label:'Display',ratio:10,variable:false,extraComponent:'display_shell',extraQty:1},{id:'case',label:'Master Case',ratio:10,variable:false,extraComponent:'case_shell',extraQty:1}]
+  },
+  { id:'cart510_2g', name:'2G 510 Cartridge',
+    components:[{id:'hardware',label:'Hardware',scope:'shared'},{id:'insert',label:'Insert',scope:'flavor'},{id:'packaging',label:'Packaging',scope:'flavor'},{id:'display_shell',label:'Display Shell',scope:'flavor'},{id:'case_shell',label:'Master Case Shell',scope:'flavor'}],
+    stages:[{id:'fill',label:'Fill',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
+    baseComponent:null,
+    packLevels:[{id:'display',label:'Display',ratio:10,variable:false,extraComponent:'display_shell',extraQty:1},{id:'case',label:'Master Case',ratio:10,variable:false,extraComponent:'case_shell',extraQty:1}]
+  },
+  { id:'melted_diamond_1g', name:'1G Melted Diamond Disposable',
+    components:[{id:'hardware',label:'Hardware',scope:'flavor'},{id:'insert',label:'Insert',scope:'flavor'},{id:'packaging',label:'Packaging',scope:'flavor'},{id:'display_shell',label:'Display Shell',scope:'flavor'},{id:'case_shell',label:'Case Shell',scope:'flavor'}],
+    stages:[{id:'fill',label:'Fill',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
+    baseComponent:null,
+    packLevels:[{id:'display',label:'Display',ratio:10,variable:false,extraComponent:'display_shell',extraQty:1},{id:'case',label:'Case',ratio:5,variable:false,extraComponent:'case_shell',extraQty:1}]
+  },
+  { id:'live_resin_1g', name:'1G Live Resin Disposable',
+    components:[{id:'hardware',label:'Hardware',scope:'flavor'},{id:'insert',label:'Insert',scope:'flavor'},{id:'packaging',label:'Packaging',scope:'flavor'},{id:'display_shell',label:'Display Shell',scope:'flavor'},{id:'case_shell',label:'Case Shell',scope:'flavor'}],
+    stages:[{id:'fill',label:'Fill',consumesComp:[{comp:'hardware',qty:1}]},{id:'pack',label:'Pack',consumesComp:[{comp:'insert',qty:1},{comp:'packaging',qty:1}]},{id:'toqc',label:'Send to QC',consumesComp:[]},{id:'passqc',label:'Pass QC',consumesComp:[]}],
+    baseComponent:null,
+    packLevels:[{id:'display',label:'Display',ratio:10,variable:false,extraComponent:'display_shell',extraQty:1},{id:'case',label:'Case',ratio:5,variable:false,extraComponent:'case_shell',extraQty:1}]
+  }
+];
+
+let session = null; // {token, name, id}
+let currentLine = PRODUCT_LINES[0].id;
+let lineData = { flavors:[], shared:{}, comps:{}, stages:{}, sellable:{}, packs:{}, since:{}, fulfilled:{}, transactions:[] };
+
+function pl(){ return PRODUCT_LINES.find(p=>p.id===currentLine); }
+function compDef(lineId, compId){ return PRODUCT_LINES.find(p=>p.id===lineId).components.find(c=>c.id===compId); }
+function fmt(n){ return (n||0).toLocaleString(); }
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function ageLabel(ts){ if(!ts) return ''; const mins=Math.floor((Date.now()-new Date(ts).getTime())/60000); if(mins<60) return mins+'m'; const hrs=Math.floor(mins/60); if(hrs<24) return hrs+'h'; return Math.floor(hrs/24)+'d'; }
+function showError(msg){ const el=document.getElementById('errorBanner'); el.textContent=msg; el.classList.add('show'); }
+function clearError(){ document.getElementById('errorBanner').classList.remove('show'); }
+
+// ---------- AUTH ----------
+function loadSession(){
+  try{ const raw = localStorage.getItem('mi_session'); if(raw) session = JSON.parse(raw); }catch(e){ session=null; }
+}
+async function submitLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.classList.remove('show');
+  if(!email || !password){ errEl.textContent='Enter email and password.'; errEl.classList.add('show'); return; }
+  const { data, error } = await sb.rpc('mi_login', { p_email: email, p_password: password });
+  if(error || !data || !data[0]){ errEl.textContent='Invalid email or password.'; errEl.classList.add('show'); return; }
+  session = { token: data[0].token, name: data[0].user_name, id: data[0].user_id };
+  localStorage.setItem('mi_session', JSON.stringify(session));
+  enterApp();
+}
+function logout(){
+  session = null;
+  localStorage.removeItem('mi_session');
+  document.getElementById('app').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+}
+function enterApp(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('whoName').textContent = session.name;
+  render();
+}
+
+// ---------- DATA FETCH ----------
+async function fetchLineData(lineId){
+  clearError();
+  const [flavorsR, sharedR, compR, stageR, sellR, packR, fulfilR, txR] = await Promise.all([
+    sb.from('mi_flavors').select('*').eq('line_id', lineId).order('name'),
+    sb.from('mi_shared_components').select('*').eq('line_id', lineId),
+    sb.from('mi_flavor_components').select('*').eq('line_id', lineId),
+    sb.from('mi_stage_stock').select('*').eq('line_id', lineId),
+    sb.from('mi_sellable').select('*').eq('line_id', lineId),
+    sb.from('mi_pack_stock').select('*').eq('line_id', lineId),
+    sb.from('mi_fulfilled').select('*').eq('line_id', lineId),
+    sb.from('mi_transactions').select('*').eq('line_id', lineId).order('ts',{ascending:false}).limit(30)
+  ]);
+  const anyErr = [flavorsR,sharedR,compR,stageR,sellR,packR,fulfilR,txR].find(r=>r.error);
+  if(anyErr){ showError('Could not load data: ' + anyErr.error.message); return; }
+
+  lineData.flavors = flavorsR.data || [];
+  lineData.shared = {}; (sharedR.data||[]).forEach(r=> lineData.shared[r.comp_id]=r.qty);
+  lineData.comps = {}; (compR.data||[]).forEach(r=>{ lineData.comps[r.flavor_id]=lineData.comps[r.flavor_id]||{}; lineData.comps[r.flavor_id][r.comp_id]=r.qty; });
+  lineData.stages = {}; lineData.since = {};
+  (stageR.data||[]).forEach(r=>{ lineData.stages[r.flavor_id]=lineData.stages[r.flavor_id]||{}; lineData.stages[r.flavor_id][r.stage_id]=r.qty; lineData.since[r.flavor_id]=lineData.since[r.flavor_id]||{}; lineData.since[r.flavor_id][r.stage_id]=r.since; });
+  lineData.sellable = {}; (sellR.data||[]).forEach(r=> lineData.sellable[r.flavor_id]=r.qty);
+  lineData.packs = {}; (packR.data||[]).forEach(r=>{ lineData.packs[r.flavor_id]=lineData.packs[r.flavor_id]||{}; lineData.packs[r.flavor_id][r.level_id]=r.qty; });
+  lineData.fulfilled = {}; (fulfilR.data||[]).forEach(r=> lineData.fulfilled[r.flavor_id]={reserved:r.reserved, shipped:r.shipped});
+  lineData.transactions = txR.data || [];
+}
+
+function getComp(flId, compId){
+  const def = compDef(currentLine, compId);
+  if(def.scope==='shared') return lineData.shared[compId]||0;
+  return (lineData.comps[flId]||{})[compId]||0;
+}
+function stageQty(flId, stageId){ return (lineData.stages[flId]||{})[stageId]||0; }
+function stageSince(flId, stageId){ return (lineData.since[flId]||{})[stageId]||null; }
+function sellableQty(flId){
+  const line = pl();
+  if(line.stages.length===0) return getComp(flId, line.baseComponent);
+  return lineData.sellable[flId]||0;
+}
+function packQty(flId, levelId){ return (lineData.packs[flId]||{})[levelId]||0; }
+function fulfilledOf(flId){ return lineData.fulfilled[flId]||{reserved:0,shipped:0}; }
+
+// ---------- RENDER ----------
+function renderTabs(){
+  document.getElementById('lineTabs').innerHTML = PRODUCT_LINES.map(l=>`<div class="tab ${l.id===currentLine?'active':''}" onclick="switchLine('${l.id}')">${escapeHtml(l.name)}</div>`).join('');
+  document.getElementById('lineSub').textContent = pl().stages.length ? 'Components → Production Pipeline → Sellable → Packing' : 'Components → Sellable → Packing';
+}
+async function switchLine(id){ currentLine = id; await fetchLineData(currentLine); render(); }
+
+async function render(){
+  renderTabs();
+  renderSharedStrip();
+  renderBacklog();
+  renderCompTable();
+  renderStageTable();
+  renderSellTable();
+  renderPackTable();
+  renderLog();
+  populateAllSelects();
+}
+
+function renderSharedStrip(){
+  const shared = pl().components.filter(c=>c.scope==='shared');
+  const el = document.getElementById('sharedStrip');
+  if(shared.length===0){ el.innerHTML=''; return; }
+  el.innerHTML = shared.map(c=>`<div class="shared-chip">${escapeHtml(c.label)} (shared across all flavors): <b>${fmt(lineData.shared[c.id]||0)}</b></div>`).join('');
+}
+
+function renderBacklog(){
+  const line = pl(); const el = document.getElementById('backlogPanel'); const items = [];
+  lineData.flavors.forEach(fl=>{
+    line.stages.forEach((st,idx)=>{
+      if(idx===0) return;
+      const available = stageQty(fl.id, line.stages[idx-1].id);
+      if(available>0){
+        let limit = available;
+        st.consumesComp.forEach(cc=>{ limit = Math.min(limit, Math.floor(getComp(fl.id, cc.comp)/cc.qty)); });
+        if(limit < available){
+          const shorts = st.consumesComp.filter(cc=> Math.floor(getComp(fl.id, cc.comp)/cc.qty) < available)
+            .map(cc=>{ const short=available-Math.floor(getComp(fl.id, cc.comp)/cc.qty); return `short ~${fmt(short)} ${compDef(currentLine,cc.comp).label}`; });
+          items.push({fl, label:`${line.stages[idx-1].label} → ${st.label}`, avail:available, limit, shorts, since: stageSince(fl.id, line.stages[idx-1].id)});
+        }
+      }
+    });
+    line.packLevels.forEach((lv,idx)=>{
+      if(lv.variable) return;
+      const sourceQty = idx===0 ? sellableQty(fl.id) : packQty(fl.id, line.packLevels[idx-1].id);
+      const maxByRatio = Math.floor(sourceQty / lv.ratio);
+      if(maxByRatio>0){
+        const maxByComp = Math.floor(getComp(fl.id, lv.extraComponent) / lv.extraQty);
+        if(maxByComp < maxByRatio){
+          items.push({fl, label:`Pack ${lv.label}`, avail:maxByRatio, limit:maxByComp, shorts:[`short ~${fmt(maxByRatio-maxByComp)} ${compDef(currentLine,lv.extraComponent).label}`], since:null});
+        }
+      }
+    });
+  });
+  if(items.length===0){ el.innerHTML=''; return; }
+  el.innerHTML = `<div class="backlog"><h2>⚠ Stuck In Progress (${items.length})</h2>` +
+    items.map(it=>`<div class="backlog-item"><b>${escapeHtml(it.fl.name)}</b> — ${escapeHtml(it.label)}: ${fmt(it.avail)} ready, only ${fmt(it.limit)} can move — ${it.shorts.join(', ')}${it.since?` — <span class="age">stuck ${ageLabel(it.since)}</span>`:''}</div>`).join('') + `</div>`;
+}
+
+function renderCompTable(){
+  const line = pl(); const flavorComps = line.components.filter(c=>c.scope!=='shared');
+  document.getElementById('compHeadTitle').textContent = flavorComps.length ? 'Components on Hand (per flavor)' : 'Components on Hand';
+  document.getElementById('compHead').innerHTML = '<th>Flavor</th>' + flavorComps.map(c=>`<th>${escapeHtml(c.label)}</th>`).join('');
+  const body = document.getElementById('compBody');
+  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="${flavorComps.length+1}"><div class="empty">No flavors yet for ${escapeHtml(line.name)}.</div></td></tr>`; return; }
+  body.innerHTML = lineData.flavors.map(fl=>{
+    const cells = flavorComps.map(k=>{ const v=getComp(fl.id,k.id); return `<td class="${v===0?'qty-zero':''}">${fmt(v)}</td>`; }).join('');
+    return `<tr><td class="flavor-name">${escapeHtml(fl.name)}</td>${cells}</tr>`;
+  }).join('');
+}
+
+function renderStageTable(){
+  const line = pl(); const sec = document.getElementById('stageSection');
+  if(line.stages.length===0){ sec.style.display='none'; return; }
+  sec.style.display='block';
+  document.getElementById('stageHead').innerHTML = '<th>Flavor</th>' + line.stages.map(s=>`<th>${escapeHtml(s.label)}</th>`).join('');
+  const body = document.getElementById('stageBody');
+  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="${line.stages.length+1}"><div class="empty">—</div></td></tr>`; return; }
+  body.innerHTML = lineData.flavors.map(fl=>{
+    const cells = line.stages.map(st=>{ const v=stageQty(fl.id,st.id); return `<td class="${v===0?'qty-zero':''}">${fmt(v)}</td>`; }).join('');
+    return `<tr><td class="flavor-name">${escapeHtml(fl.name)}</td>${cells}</tr>`;
+  }).join('');
+}
+
+function renderSellTable(){
+  const line = pl();
+  document.getElementById('sellableHead').textContent = line.stages.length ? 'Sellable Units' : `Sellable Units (= ${compDef(currentLine, line.baseComponent).label} on hand)`;
+  const body = document.getElementById('sellBody');
+  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="2"><div class="empty">—</div></td></tr>`; return; }
+  body.innerHTML = lineData.flavors.map(fl=>{ const v=sellableQty(fl.id); return `<tr><td class="flavor-name">${escapeHtml(fl.name)}</td><td class="${v===0?'qty-zero':''}">${fmt(v)}</td></tr>`; }).join('');
+}
+
+function renderPackTable(){
+  const line = pl();
+  document.getElementById('packHead').innerHTML = '<th>Flavor</th>' + line.packLevels.map(l=>`<th>${escapeHtml(l.label)}</th>`).join('') + '<th>Reserved</th><th>Shipped</th>';
+  const body = document.getElementById('packBody');
+  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="${line.packLevels.length+3}"><div class="empty">—</div></td></tr>`; return; }
+  body.innerHTML = lineData.flavors.map(fl=>{
+    const f = fulfilledOf(fl.id);
+    const cells = line.packLevels.map(lv=>{ const v=packQty(fl.id,lv.id); return `<td class="${v===0?'qty-zero':''}">${fmt(v)}</td>`; }).join('');
+    return `<tr><td class="flavor-name">${escapeHtml(fl.name)}</td>${cells}<td class="${f.reserved===0?'qty-zero':''}">${fmt(f.reserved)}</td><td class="${f.shipped===0?'qty-zero':''}">${fmt(f.shipped)}</td></tr>`;
+  }).join('');
+}
+
+function renderLog(){
+  const el = document.getElementById('logList');
+  if(lineData.transactions.length===0){ el.innerHTML = `<div class="empty">No activity logged yet for ${escapeHtml(pl().name)}.</div>`; return; }
+  el.innerHTML = lineData.transactions.map(t=>`<div class="log-item"><div class="log-time">${new Date(t.ts).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}</div><div class="log-body"><b>${escapeHtml(t.by_name||'Unknown')}</b> ${escapeHtml(t.body)}</div></div>`).join('');
+}
+
+function populateAllSelects(){
+  const line = pl();
+  const flOpts = lineData.flavors.map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('') || '<option value="">No flavors yet</option>';
+  ['recFlavor','adFlavor','pkFlavor','fuFlavor'].forEach(id=>{ document.getElementById(id).innerHTML = flOpts; });
+  document.getElementById('recComp').innerHTML = line.components.map(c=>`<option value="${c.id}">${escapeHtml(c.label)}${c.scope==='shared'?' (shared)':''}</option>`).join('');
+  document.getElementById('adStage').innerHTML = line.stages.map(s=>`<option value="${s.id}">${escapeHtml(s.label)}</option>`).join('');
+  document.getElementById('pkLevel').innerHTML = line.packLevels.map(l=>`<option value="${l.id}">${escapeHtml(l.label)}</option>`).join('');
+  document.getElementById('btnAdvance').style.display = line.stages.length ? 'inline-block' : 'none';
+  updateReceiveHint(); updateAdvanceHint(); updatePackHint(); updateFulfillHint();
+}
+
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+
+document.getElementById('btnAddFlavor').onclick = ()=>{ document.getElementById('flName').value=''; document.getElementById('flErr').classList.remove('show'); openModal('modalFlavor'); };
+document.getElementById('btnReceive').onclick = ()=>{ document.getElementById('recQty').value=''; document.getElementById('recErr').classList.remove('show'); populateAllSelects(); openModal('modalReceive'); };
+document.getElementById('btnAdvance').onclick = ()=>{ if(lineData.flavors.length===0){alert('Add a flavor first.');return;} document.getElementById('adQty').value=''; document.getElementById('adErr').classList.remove('show'); populateAllSelects(); openModal('modalAdvance'); };
+document.getElementById('btnPack').onclick = ()=>{ if(lineData.flavors.length===0){alert('Add a flavor first.');return;} document.getElementById('pkQty').value=''; document.getElementById('pkVarQty').value=''; document.getElementById('pkErr').classList.remove('show'); populateAllSelects(); openModal('modalPack'); };
+document.getElementById('btnFulfill').onclick = ()=>{ if(lineData.flavors.length===0){alert('Add a flavor first.');return;} document.getElementById('fuQty').value=''; document.getElementById('fuRef').value=''; document.getElementById('fuErr').classList.remove('show'); populateAllSelects(); openModal('modalFulfill'); };
+
+document.getElementById('recComp').addEventListener('change', updateReceiveHint);
+document.getElementById('recFlavor').addEventListener('change', updateReceiveHint);
+document.getElementById('adFlavor').addEventListener('change', updateAdvanceHint);
+document.getElementById('adStage').addEventListener('change', updateAdvanceHint);
+document.getElementById('pkFlavor').addEventListener('change', updatePackHint);
+document.getElementById('pkLevel').addEventListener('change', updatePackHint);
+document.getElementById('fuFlavor').addEventListener('change', updateFulfillHint);
+document.getElementById('fuAction').addEventListener('change', updateFulfillHint);
+
+function updateReceiveHint(){
+  const comp = document.getElementById('recComp').value; const def = compDef(currentLine, comp);
+  const isShared = def && def.scope==='shared';
+  document.getElementById('recFlavorWrap').style.display = isShared ? 'none' : 'block';
+  const flId = document.getElementById('recFlavor').value;
+  const c = isShared ? (lineData.shared[comp]||0) : getComp(flId, comp);
+  document.getElementById('recQty').placeholder = `On hand: ${fmt(c)}`;
+  document.getElementById('recErr').classList.remove('show');
+}
+function updateAdvanceHint(){
+  const line = pl(); const flId = document.getElementById('adFlavor').value; const stageId = document.getElementById('adStage').value;
+  const idx = line.stages.findIndex(s=>s.id===stageId); const hint = document.getElementById('adHint');
+  if(idx<0){ hint.textContent=''; return; }
+  const stage = line.stages[idx]; const parts=[];
+  parts.push(idx===0 ? 'Draws directly from components' : `Available from ${line.stages[idx-1].label}: ${fmt(stageQty(flId, line.stages[idx-1].id))}`);
+  stage.consumesComp.forEach(cc=>{ const def=compDef(currentLine,cc.comp); parts.push(`${def.label}${def.scope==='shared'?' (shared)':''}: ${fmt(getComp(flId,cc.comp))}`); });
+  hint.textContent = parts.join(' · ');
+}
+function updatePackHint(){
+  const line = pl(); const flId = document.getElementById('pkFlavor').value; const levelId = document.getElementById('pkLevel').value;
+  const idx = line.packLevels.findIndex(l=>l.id===levelId); const lv = line.packLevels[idx]; const hint = document.getElementById('pkHint');
+  document.getElementById('pkQtyWrap').style.display = lv && lv.variable ? 'none' : 'block';
+  document.getElementById('pkVarWrap').style.display = lv && lv.variable ? 'block' : 'none';
+  if(!lv){ hint.textContent=''; return; }
+  const sourceQty = idx===0 ? sellableQty(flId) : packQty(flId, line.packLevels[idx-1].id);
+  const sourceLabel = idx===0 ? 'Sellable units' : line.packLevels[idx-1].label+'s';
+  const compLabelDef = compDef(currentLine, lv.extraComponent);
+  hint.textContent = lv.variable
+    ? `${sourceLabel} on hand: ${fmt(sourceQty)} · ${compLabelDef.label}: ${fmt(getComp(flId,lv.extraComponent))}`
+    : `${sourceLabel} on hand: ${fmt(sourceQty)} (needs ${lv.ratio}/${lv.label.toLowerCase()}) · ${compLabelDef.label}: ${fmt(getComp(flId,lv.extraComponent))}`;
+}
+function updateFulfillHint(){
+  const line = pl(); const flId = document.getElementById('fuFlavor').value; const action = document.getElementById('fuAction').value;
+  const topLevel = line.packLevels[line.packLevels.length-1];
+  const f = fulfilledOf(flId);
+  document.getElementById('fuHint').textContent = action==='reserve' ? `${topLevel.label}s packed: ${fmt(packQty(flId, topLevel.id))}` : `${topLevel.label}s reserved: ${fmt(f.reserved)}`;
+}
+
+// ---------- SUBMIT HANDLERS (call Supabase RPCs) ----------
+async function submitAddFlavor(){
+  const name = document.getElementById('flName').value.trim();
+  if(!name){ document.getElementById('flErr').classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_add_flavor', { p_token: session.token, p_line: currentLine, p_name: name });
+  if(error){ document.getElementById('flErr').textContent = error.message; document.getElementById('flErr').classList.add('show'); return; }
+  await fetchLineData(currentLine); render(); closeModal('modalFlavor');
+}
+
+async function submitReceive(){
+  const comp = document.getElementById('recComp').value; const def = compDef(currentLine, comp);
+  const isShared = def.scope==='shared';
+  const flId = document.getElementById('recFlavor').value;
+  const qty = parseInt(document.getElementById('recQty').value,10);
+  const errEl = document.getElementById('recErr');
+  if(!isShared && !flId){ errEl.textContent='Choose a flavor.'; errEl.classList.add('show'); return; }
+  if(!qty || qty<=0){ errEl.textContent='Enter a quantity greater than 0.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_receive_component', { p_token: session.token, p_line: currentLine, p_flavor: isShared?null:flId, p_comp: comp, p_qty: qty, p_shared: isShared, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  await fetchLineData(currentLine); render(); closeModal('modalReceive');
+}
+
+async function submitAdvance(){
+  const line = pl(); const flId = document.getElementById('adFlavor').value; const stageId = document.getElementById('adStage').value;
+  const qty = parseInt(document.getElementById('adQty').value,10);
+  const errEl = document.getElementById('adErr');
+  const idx = line.stages.findIndex(s=>s.id===stageId); const stage = line.stages[idx];
+  if(!flId){ errEl.textContent='Choose a flavor.'; errEl.classList.add('show'); return; }
+  if(!qty || qty<=0){ errEl.textContent='Enter a quantity greater than 0.'; errEl.classList.add('show'); return; }
+  const consumes = stage.consumesComp.map(cc=>({comp:cc.comp, qty:cc.qty, shared: compDef(currentLine,cc.comp).scope==='shared'}));
+  const { error } = await sb.rpc('mi_advance_stage', {
+    p_token: session.token, p_line: currentLine, p_flavor: flId,
+    p_from_stage: idx>0 ? line.stages[idx-1].id : null,
+    p_to_stage: idx<line.stages.length-1 ? stage.id : null,
+    p_is_final: idx===line.stages.length-1,
+    p_qty: qty, p_consumes: consumes, p_stage_label: stage.label, p_by: session.name
+  });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  await fetchLineData(currentLine); render(); closeModal('modalAdvance');
+}
+
+async function submitPack(){
+  const line = pl(); const flId = document.getElementById('pkFlavor').value; const levelId = document.getElementById('pkLevel').value;
+  const errEl = document.getElementById('pkErr');
+  const idx = line.packLevels.findIndex(l=>l.id===levelId); const lv = line.packLevels[idx];
+  if(!flId){ errEl.textContent='Choose a flavor.'; errEl.classList.add('show'); return; }
+  const sourceQty = idx===0 ? sellableQty(flId) : packQty(flId, line.packLevels[idx-1].id);
+
+  let unitsNeeded, produceQty;
+  if(lv.variable){
+    unitsNeeded = parseInt(document.getElementById('pkVarQty').value,10);
+    if(!unitsNeeded || unitsNeeded<=0){ errEl.textContent='Enter units going into this pack.'; errEl.classList.add('show'); return; }
+    produceQty = 1;
+  } else {
+    const packs = parseInt(document.getElementById('pkQty').value,10);
+    if(!packs || packs<=0){ errEl.textContent='Enter number of packs.'; errEl.classList.add('show'); return; }
+    unitsNeeded = packs*lv.ratio; produceQty = packs;
+  }
+  if(unitsNeeded > sourceQty){ errEl.textContent = `Needs ${fmt(unitsNeeded)}, only ${fmt(sourceQty)} available.`; errEl.classList.add('show'); return; }
+
+  const extraDef = compDef(currentLine, lv.extraComponent);
+  const { error } = await sb.rpc('mi_pack', {
+    p_token: session.token, p_line: currentLine, p_flavor: flId, p_level_id: lv.id, p_level_label: lv.label,
+    p_source_is_sellable: idx===0, p_source_level: idx>0 ? line.packLevels[idx-1].id : null,
+    p_units_needed: unitsNeeded, p_extra_comp: lv.extraComponent, p_extra_qty: lv.extraQty*produceQty,
+    p_extra_shared: extraDef.scope==='shared', p_produce_qty: produceQty, p_by: session.name
+  });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  await fetchLineData(currentLine); render(); closeModal('modalPack');
+}
+
+async function submitFulfill(){
+  const line = pl(); const flId = document.getElementById('fuFlavor').value; const action = document.getElementById('fuAction').value;
+  const qty = parseInt(document.getElementById('fuQty').value,10);
+  const ref = document.getElementById('fuRef').value.trim();
+  const errEl = document.getElementById('fuErr');
+  const topLevel = line.packLevels[line.packLevels.length-1];
+  if(!flId){ errEl.textContent='Choose a flavor.'; errEl.classList.add('show'); return; }
+  if(!qty || qty<=0){ errEl.textContent='Enter a quantity greater than 0.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_fulfill', { p_token: session.token, p_line: currentLine, p_flavor: flId, p_top_level: topLevel.id, p_top_label: topLevel.label, p_action: action, p_qty: qty, p_ref: ref, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  await fetchLineData(currentLine); render(); closeModal('modalFulfill');
+}
+
+// ---------- INIT ----------
+(async function init(){
+  loadSession();
+  if(session){
+    enterApp();
+    await fetchLineData(currentLine);
+    render();
+  }
+})();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').catch(e=>console.error('SW registration failed', e));
+  });
+}
+</script>
+</body>
+</html>
