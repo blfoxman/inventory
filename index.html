@@ -105,6 +105,20 @@
     #printLabel, #printLabel *{visibility:visible;}
     #printLabel{display:block;position:fixed;top:0;left:0;padding:12px;}
   }
+
+  #shell{display:flex;min-height:100vh;}
+  #sidebar{width:220px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);padding:18px 0;}
+  #sidebar .sb-title{padding:0 18px 16px;font-size:15px;font-weight:700;border-bottom:1px solid var(--line);margin-bottom:10px;}
+  #sidebar .sb-title span{color:var(--amber);}
+  .sb-item{display:flex;align-items:center;gap:10px;padding:10px 18px;font-size:13.5px;font-weight:600;color:var(--dim);cursor:pointer;border-left:3px solid transparent;}
+  .sb-item:hover{background:var(--panel2);color:var(--text);}
+  .sb-item.active{background:var(--panel2);color:var(--amber);border-left-color:var(--amber);}
+  .sb-item .sb-icon{width:18px;text-align:center;}
+  .sb-item.soon{opacity:.4;cursor:default;}
+  .sb-item.soon:hover{background:none;color:var(--dim);}
+  .sb-soon-tag{font-size:9px;text-transform:uppercase;background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-left:auto;}
+  #mainContent{flex:1;min-width:0;}
+  #app{max-width:1240px;margin:0;padding:20px 16px 80px;}
 </style>
 </head>
 <body>
@@ -120,7 +134,13 @@
   </div>
 </div>
 
-<div id="app" style="display:none;">
+<div id="shell" style="display:none;">
+  <nav id="sidebar">
+    <div class="sb-title">Black Fox <span>ERP</span></div>
+    <div id="sidebarItems"></div>
+  </nav>
+  <div id="mainContent">
+<div id="app">
   <header>
     <div>
       <h1>MI Inventory <span>Flow</span></h1>
@@ -208,6 +228,8 @@
     <h2 class="head">Recent Activity</h2>
     <div id="logList" style="background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);"></div>
   </section>
+</div>
+  </div>
 </div>
 
 <div id="printLabel">
@@ -411,6 +433,7 @@
 
 
 
+
 <script>
 const SUPABASE_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
@@ -489,14 +512,42 @@ async function submitLogin(){
 function logout(){
   session = null;
   localStorage.removeItem('mi_session');
-  document.getElementById('app').style.display='none';
+  document.getElementById('shell').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
 }
 function enterApp(){
   document.getElementById('loginScreen').style.display='none';
-  document.getElementById('app').style.display='block';
+  document.getElementById('shell').style.display='flex';
   document.getElementById('whoName').textContent = session.name;
   document.getElementById('btnAdmin').style.display = session.role==='admin' ? 'inline-block' : 'none';
+  renderSidebar();
+  render();
+}
+
+// ---------- SIDEBAR (ERP shell navigation) ----------
+let currentSection = 'warehouse';
+const SIDEBAR_SECTIONS = [
+  {id:'dashboard', label:'Dashboard', icon:'📊'},
+  {id:'warehouse', label:'Warehouse', icon:'📦'},
+  {id:'manufacturing', label:'Manufacturing', icon:'🏭'},
+  {id:'inventory', label:'Inventory', icon:'📋'},
+  {id:'fulfillment', label:'Fulfillment', icon:'🏷️'},
+  {id:'distribution', label:'Distribution', icon:'🚚'},
+  {id:'reports', label:'Reports', icon:'📄'},
+  {id:'settings', label:'Settings', icon:'⚙️'}
+];
+const SIDEBAR_SOON = ['Plants','Accounts Payable','Accounts Receivable','General Ledger','Illumify Hub'];
+function renderSidebar(){
+  const el = document.getElementById('sidebarItems');
+  let html = SIDEBAR_SECTIONS.map(s=>`<div class="sb-item ${currentSection===s.id?'active':''}" onclick="switchSection('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}</div>`).join('');
+  html += SIDEBAR_SOON.map(name=>`<div class="sb-item soon"><span class="sb-icon">•</span>${escapeHtml(name)}<span class="sb-soon-tag">Not built</span></div>`).join('');
+  el.innerHTML = html;
+}
+async function switchSection(id){
+  currentSection = id;
+  renderSidebar();
+  if(id==='dashboard' && currentLine!==DASHBOARD_ID){ await switchLine(DASHBOARD_ID); return; }
+  if(id!=='dashboard' && currentLine===DASHBOARD_ID){ await switchLine(PRODUCT_LINES[0].id); return; }
   render();
 }
 
@@ -546,15 +597,15 @@ function fulfilledOf(flId){ return lineData.fulfilled[flId]||{reserved:0,shipped
 const DASHBOARD_ID = '__dashboard__';
 function renderTabs(){
   const sel = document.getElementById('lineSelect');
-  const options = [`<option value="${DASHBOARD_ID}" ${currentLine===DASHBOARD_ID?'selected':''}>📊 Dashboard</option>`]
-    .concat(PRODUCT_LINES.map(l=>`<option value="${l.id}" ${l.id===currentLine?'selected':''}>${escapeHtml(l.name)}</option>`));
-  sel.innerHTML = options.join('');
+  sel.innerHTML = PRODUCT_LINES.map(l=>`<option value="${l.id}" ${l.id===currentLine?'selected':''}>${escapeHtml(l.name)}</option>`).join('');
+  sel.style.display = currentLine===DASHBOARD_ID ? 'none' : 'inline-block';
   document.getElementById('lineSub').textContent = currentLine===DASHBOARD_ID ? 'Executive summary — all product lines' : (pl().stages.length ? 'Components → Production Pipeline → Sellable → Packing' : 'Components → Sellable → Packing');
 }
 document.getElementById('lineSelect').addEventListener('change', (e)=> switchLine(e.target.value));
 async function switchLine(id){
   currentLine = id;
-  if(id===DASHBOARD_ID){ await fetchDashboardData(); render(); return; }
+  if(id===DASHBOARD_ID){ currentSection='dashboard'; renderSidebar(); await fetchDashboardData(); render(); return; }
+  if(currentSection==='dashboard'){ currentSection='warehouse'; renderSidebar(); }
   await fetchLineData(currentLine); render();
 }
 
@@ -592,6 +643,42 @@ async function render(){
     renderSellTable();
     renderPackTable();
   }
+
+  applySectionVisibility(isBatch);
+}
+
+// Sidebar section decides which of the existing blocks/buttons are shown.
+// This runs last, as a final filter on top of the isBatch/isDash logic above.
+function applySectionVisibility(isBatch){
+  const sectionBlocks = {
+    warehouse: ['compSection'],
+    manufacturing: isBatch ? ['batchListSection'] : ['stageSection','packSection'],
+    inventory: isBatch ? ['batchFlavorTotalsSection'] : ['sellSection'],
+    fulfillment: isBatch ? ['fulfillmentSection'] : [],
+    distribution: isBatch ? ['distributionSection'] : [],
+    reports: ['logSection'],
+    settings: []
+  };
+  const sectionButtons = {
+    warehouse: ['btnReceive'],
+    manufacturing: isBatch ? ['btnAdvanceProduction'] : ['btnAdvance','btnPack','btnLoss'],
+    inventory: [],
+    fulfillment: isBatch ? ['btnFulfillment'] : ['btnFulfill'],
+    distribution: [],
+    reports: ['btnReports','btnPhysicalAudit','btnBatch'],
+    settings: ['btnAddFlavor','btnAdmin']
+  };
+  const allBlocks = ['compSection','stageSection','packSection','sellSection','batchListSection','batchFlavorTotalsSection','fulfillmentSection','distributionSection','logSection'];
+  const allButtons = ['btnReceive','btnAdvance','btnPack','btnLoss','btnAdvanceProduction','btnFulfillment','btnFulfill','btnReports','btnPhysicalAudit','btnBatch','btnAddFlavor','btnAdmin'];
+  allBlocks.forEach(id=> document.getElementById(id).style.display = 'none');
+  allButtons.forEach(id=> document.getElementById(id).style.display = 'none');
+  (sectionBlocks[currentSection]||[]).forEach(id=> document.getElementById(id).style.display = '');
+  (sectionButtons[currentSection]||[]).forEach(id=>{
+    if(id==='btnAdmin' && session.role!=='admin') return;
+    document.getElementById(id).style.display = 'inline-block';
+  });
+  document.getElementById('sharedStrip').style.display = currentSection==='warehouse' ? '' : 'none';
+  document.getElementById('backlogPanel').style.display = (currentSection==='manufacturing' && !isBatch) ? '' : 'none';
 }
 
 // ---------- BATCH MODEL (Fill -> Test/Waste -> Package -> Waste -> Inventory -> Reserve -> QC Label -> Shipped) ----------
