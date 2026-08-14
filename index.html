@@ -214,6 +214,15 @@
     <div class="tblwrap"><table id="categoriesTable"><thead><tr><th>Flavor</th><th>Batch Code Prefix</th></tr></thead><tbody id="categoriesBody"></tbody></table></div>
   </section>
 
+  <section class="block" id="itemsSection" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <h2 class="head" style="margin:0;">Cannabis Items</h2>
+      <button class="primary" id="btnAddItem">Add New Item</button>
+    </div>
+    <div class="field" style="max-width:340px;"><input id="itemSearch" placeholder="Search by name or category..." oninput="renderItemsList()"></div>
+    <div class="tblwrap" style="margin-top:12px;"><table id="itemsTable"><thead><tr><th>Item Name</th><th>Compliance Category</th><th>Product Category</th><th>Unit of Measure</th><th>Brand</th></tr></thead><tbody id="itemsBody"></tbody></table></div>
+  </section>
+
   <section class="block" id="fulfillmentSection" style="display:none;">
     <h2 class="head">Fulfillment</h2>
     <h3 style="font-size:12.5px;color:var(--dim);margin:14px 0 8px;">Pending Orders — need QC & Labeling</h3>
@@ -435,6 +444,25 @@
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalManifest')">Cancel</button><button class="primary" onclick="submitManifest()">Ship Out</button></div>
 </div></div>
 
+<div class="overlay" id="modalCreateItem"><div class="modal" style="max-width:560px;">
+  <h3>Create an Item</h3>
+  <div class="hint" style="margin-bottom:12px;">Create a new item to use at your facility.</div>
+
+  <div class="field"><label>Item Name</label><input id="itName"></div>
+  <div class="field"><label>Internal Code (Optional)</label><input id="itCode"></div>
+  <div class="field"><label>Compliance Category</label><select id="itComplianceCat"></select></div>
+  <div class="field"><label>Product Category (Optional)</label><select id="itProductCat"><option value="">—</option></select></div>
+  <div class="field"><label>Unit of Measure</label><select id="itUom"></select></div>
+  <div class="field"><label>Price (Optional)</label><input id="itPrice" type="number" step="0.01" placeholder="0.00"></div>
+  <div class="field"><label>Item Brand (Optional)</label><input id="itBrand"></div>
+
+  <div id="itDynamicFields"></div>
+
+  <div class="err" id="itErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateItem')">Cancel</button><button class="primary" onclick="submitCreateItem()">Create Item</button></div>
+</div></div>
+
+
 
 
 
@@ -538,7 +566,7 @@ const SIDEBAR_SECTIONS = [
   {id:'manufacturing', label:'Manufacturing', icon:'🏭'},
   {id:'inventory', label:'Inventory', icon:'📋', children:[
     {id:'packages', label:'Packages'},
-    {id:'cannabis_items', label:'Cannabis Items', soon:true},
+    {id:'cannabis_items', label:'Cannabis Items'},
     {id:'noncannabis_items', label:'Non-cannabis Items', soon:true},
     {id:'batches', label:'Batches'},
     {id:'categories', label:'Categories'},
@@ -693,11 +721,14 @@ async function render(){
 function applySectionVisibility(isBatch){
   function inventoryBlocks(){
     if(currentSubSection==='categories') return ['categoriesSection'];
+    if(currentSubSection==='cannabis_items') return ['itemsSection'];
     if(currentSubSection==='reserved_packages') return isBatch ? ['fulfillmentSection'] : [];
     return isBatch ? ['batchFlavorTotalsSection','batchListSection'] : ['sellSection']; // packages / batches
   }
   function inventoryButtons(){
-    return currentSubSection==='categories' ? ['btnAddFlavor'] : [];
+    if(currentSubSection==='categories') return ['btnAddFlavor'];
+    if(currentSubSection==='cannabis_items') return ['btnAddItem'];
+    return [];
   }
   const sectionBlocks = {
     warehouse: ['compSection'],
@@ -717,8 +748,8 @@ function applySectionVisibility(isBatch){
     reports: ['btnReports','btnPhysicalAudit','btnBatch'],
     settings: ['btnAddFlavor','btnAdmin']
   };
-  const allBlocks = ['compSection','stageSection','packSection','sellSection','batchListSection','batchFlavorTotalsSection','categoriesSection','fulfillmentSection','distributionSection','logSection'];
-  const allButtons = ['btnReceive','btnAdvance','btnPack','btnLoss','btnAdvanceProduction','btnFulfillment','btnFulfill','btnReports','btnPhysicalAudit','btnBatch','btnAddFlavor','btnAdmin'];
+  const allBlocks = ['compSection','stageSection','packSection','sellSection','batchListSection','batchFlavorTotalsSection','categoriesSection','itemsSection','fulfillmentSection','distributionSection','logSection'];
+  const allButtons = ['btnReceive','btnAdvance','btnPack','btnLoss','btnAdvanceProduction','btnFulfillment','btnFulfill','btnReports','btnPhysicalAudit','btnBatch','btnAddFlavor','btnAddItem','btnAdmin'];
   allBlocks.forEach(id=> document.getElementById(id).style.display = 'none');
   allButtons.forEach(id=> document.getElementById(id).style.display = 'none');
   (sectionBlocks[currentSection]||[]).forEach(id=> document.getElementById(id).style.display = '');
@@ -727,6 +758,7 @@ function applySectionVisibility(isBatch){
     document.getElementById(id).style.display = 'inline-block';
   });
   if(currentSection==='inventory' && currentSubSection==='categories') renderCategoriesSection();
+  if(currentSection==='inventory' && currentSubSection==='cannabis_items') loadAndRenderItems();
   document.getElementById('sharedStrip').style.display = currentSection==='warehouse' ? '' : 'none';
   document.getElementById('backlogPanel').style.display = (currentSection==='manufacturing' && !isBatch) ? '' : 'none';
 }
@@ -1128,6 +1160,98 @@ function renderPackTable(){
   const reservedTotal = lineData.flavors.reduce((s,fl)=>s+fulfilledOf(fl.id).reserved,0);
   const shippedTotal = lineData.flavors.reduce((s,fl)=>s+fulfilledOf(fl.id).shipped,0);
   foot.innerHTML = `<tr><td>TOTAL — all flavors</td>${packTotals.map(t=>`<td>${fmt(t)}</td>`).join('')}<td>${fmt(reservedTotal)}</td><td>${fmt(shippedTotal)}</td></tr>`;
+}
+
+// ---------- CANNABIS ITEMS (METRC-style item catalog) ----------
+const COMPLIANCE_CATEGORIES = [
+  'Biomass','Bud/Flower','Bud/Flower (Final Packaging)','Concentrate','Concentrate (Final Packaging)',
+  'Fresh Frozen Plant','Ground Bud/Flower','Ground Bud/Flower (Final Packaging)','Ground Shake/Trim',
+  'Ground Shake/Trim (Final Packaging)','Immature Plants','Immature Plants (Final Packaging)',
+  'Infused Edible','Infused Edible (Final Packaging)','Infused Non-Edible','Infused Non-Edible (Final Packaging)',
+  'Infused Preroll','Infused Preroll (Final Packaging)','Raw Preroll','Raw Preroll (Final Packaging)',
+  'Seeds','Shake/Trim','Shake/Trim (Final Packaging)','Vape Cartridge','Vape Cartridge (Final Packaging)'
+];
+const WEIGHT_UOMS = ['Grams','Kilograms','Milligrams','Ounces','Pounds'];
+function categoryProfile(cat){
+  const isFinal = cat.includes('(Final Packaging)');
+  if(['Biomass','Bud/Flower','Fresh Frozen Plant','Ground Bud/Flower','Ground Shake/Trim','Immature Plants','Shake/Trim','Seeds'].some(c=>cat.startsWith(c))){
+    return { uom: WEIGHT_UOMS, strain: true, dosed: false, weight: isFinal };
+  }
+  if(cat.startsWith('Concentrate')){
+    return { uom: WEIGHT_UOMS, strain: false, dosed: false, weight: isFinal };
+  }
+  if(cat.startsWith('Vape Cartridge')){
+    return { uom: ['Each'], strain: false, dosed: true, weight: isFinal };
+  }
+  if(['Infused Edible','Infused Non-Edible','Infused Preroll','Raw Preroll'].some(c=>cat.startsWith(c))){
+    return { uom: ['Each','Grams','Milligrams','Ounces'], strain: false, dosed: true, weight: isFinal };
+  }
+  return { uom: ['Each','Grams','Kilograms','Milligrams','Ounces','Pounds'], strain: false, dosed: false, weight: false };
+}
+function populateItemModal(){
+  document.getElementById('itName').value=''; document.getElementById('itCode').value='';
+  document.getElementById('itPrice').value=''; document.getElementById('itBrand').value='';
+  document.getElementById('itComplianceCat').innerHTML = COMPLIANCE_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  document.getElementById('itProductCat').innerHTML = '<option value="">—</option>' + COMPLIANCE_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  document.getElementById('itErr').classList.remove('show');
+  updateItemDynamicFields();
+}
+document.getElementById('itComplianceCat').addEventListener('change', updateItemDynamicFields);
+function updateItemDynamicFields(){
+  const cat = document.getElementById('itComplianceCat').value;
+  const profile = categoryProfile(cat);
+  document.getElementById('itUom').innerHTML = profile.uom.map(u=>`<option value="${u}">${u}</option>`).join('');
+  const el = document.getElementById('itDynamicFields');
+  let html = '';
+  if(profile.strain) html += `<div class="field"><label>Strain</label><input id="itStrain"></div>`;
+  if(profile.dosed){
+    html += `
+      <div class="field"><label>Administration Method</label><input id="itAdminMethod"></div>
+      <div class="field"><label>Serving Size</label><input id="itServingSize"></div>
+      <div class="field"><label>Number of Doses</label><input id="itNumDoses"></div>
+      <div class="field"><label>Public Ingredients</label><input id="itIngredients"></div>
+      <div class="field"><label>Unit THC Content</label><input id="itThcContent"></div>
+      <div class="field"><label>Unit THC Content Dose</label><input id="itThcDose"></div>`;
+  }
+  if(profile.weight){
+    html += `<div class="field"><label>Unit Weight</label><input id="itUnitWeight"></div>`;
+  }
+  el.innerHTML = html;
+}
+document.getElementById('btnAddItem').onclick = ()=>{ populateItemModal(); openModal('modalCreateItem'); };
+async function submitCreateItem(){
+  const errEl = document.getElementById('itErr');
+  const name = document.getElementById('itName').value.trim();
+  const cat = document.getElementById('itComplianceCat').value;
+  if(!name){ errEl.textContent='Enter an item name.'; errEl.classList.add('show'); return; }
+  const g = id => document.getElementById(id) ? document.getElementById(id).value.trim() : '';
+  const item = {
+    item_name: name, internal_code: g('itCode'), compliance_category: cat, product_category: document.getElementById('itProductCat').value,
+    unit_of_measure: document.getElementById('itUom').value, price: g('itPrice'), item_brand: g('itBrand'),
+    strain: g('itStrain'), administration_method: g('itAdminMethod'), serving_size: g('itServingSize'),
+    number_of_doses: g('itNumDoses'), public_ingredients: g('itIngredients'),
+    unit_thc_content: g('itThcContent'), unit_thc_content_dose: g('itThcDose'), unit_weight: g('itUnitWeight')
+  };
+  const { error } = await sb.rpc('mi_create_item', { p_token: session.token, p_item: item, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCreateItem');
+  await loadAndRenderItems();
+}
+let itemsData = [];
+async function loadAndRenderItems(){
+  const { data, error } = await sb.from('mi_items').select('*').order('created_at',{ascending:false});
+  if(error){ showError('Could not load items: ' + error.message); return; }
+  itemsData = data || [];
+  renderItemsList();
+}
+function renderItemsList(){
+  const q = (document.getElementById('itemSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('itemsBody');
+  let rows = itemsData;
+  if(q) rows = rows.filter(i=> (i.item_name||'').toLowerCase().includes(q) || (i.compliance_category||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="5"><div class="empty">No items yet. Click "Add New Item" to create one.</div></td></tr>`; return; }
+  body.innerHTML = rows.map(i=>`<tr><td class="flavor-name">${escapeHtml(i.item_name)}</td><td>${escapeHtml(i.compliance_category)}</td><td>${escapeHtml(i.product_category||'—')}</td><td>${escapeHtml(i.unit_of_measure||'—')}</td><td>${escapeHtml(i.item_brand||'—')}</td></tr>`).join('');
 }
 
 function renderCategoriesSection(){
