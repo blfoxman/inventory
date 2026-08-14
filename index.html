@@ -209,6 +209,11 @@
     <div class="tblwrap"><table id="batchListTable"><thead><tr><th>Batch Code</th><th>Flavor</th><th>Fill</th><th>Package</th><th>Inventory</th><th>Reserved</th><th>Shipped</th><th>Test Loss</th><th>Waste Loss</th><th>Created</th></tr></thead><tbody id="batchListBody"></tbody></table></div>
   </section>
 
+  <section class="block" id="categoriesSection" style="display:none;">
+    <h2 class="head">Categories (Flavors)</h2>
+    <div class="tblwrap"><table id="categoriesTable"><thead><tr><th>Flavor</th><th>Batch Code Prefix</th></tr></thead><tbody id="categoriesBody"></tbody></table></div>
+  </section>
+
   <section class="block" id="fulfillmentSection" style="display:none;">
     <h2 class="head">Fulfillment</h2>
     <h3 style="font-size:12.5px;color:var(--dim);margin:14px 0 8px;">Pending Orders — need QC & Labeling</h3>
@@ -434,6 +439,7 @@
 
 
 
+
 <script>
 const SUPABASE_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
@@ -530,21 +536,56 @@ const SIDEBAR_SECTIONS = [
   {id:'dashboard', label:'Dashboard', icon:'📊'},
   {id:'warehouse', label:'Warehouse', icon:'📦'},
   {id:'manufacturing', label:'Manufacturing', icon:'🏭'},
-  {id:'inventory', label:'Inventory', icon:'📋'},
+  {id:'inventory', label:'Inventory', icon:'📋', children:[
+    {id:'packages', label:'Packages'},
+    {id:'cannabis_items', label:'Cannabis Items', soon:true},
+    {id:'noncannabis_items', label:'Non-cannabis Items', soon:true},
+    {id:'batches', label:'Batches'},
+    {id:'categories', label:'Categories'},
+    {id:'lots', label:'Lots', soon:true},
+    {id:'reserved_packages', label:'Reserved Packages'},
+    {id:'forecasting', label:'Forecasting', soon:true}
+  ]},
   {id:'fulfillment', label:'Fulfillment', icon:'🏷️'},
   {id:'distribution', label:'Distribution', icon:'🚚'},
   {id:'reports', label:'Reports', icon:'📄'},
   {id:'settings', label:'Settings', icon:'⚙️'}
 ];
 const SIDEBAR_SOON = ['Plants','Accounts Payable','Accounts Receivable','General Ledger','Illumify Hub'];
+let expandedSidebar = {};
+let currentSubSection = null;
 function renderSidebar(){
   const el = document.getElementById('sidebarItems');
-  let html = SIDEBAR_SECTIONS.map(s=>`<div class="sb-item ${currentSection===s.id?'active':''}" onclick="switchSection('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}</div>`).join('');
+  let html = SIDEBAR_SECTIONS.map(s=>{
+    if(!s.children){
+      return `<div class="sb-item ${currentSection===s.id?'active':''}" onclick="switchSection('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}</div>`;
+    }
+    const isOpen = !!expandedSidebar[s.id];
+    let block = `<div class="sb-item ${currentSection===s.id?'active':''}" onclick="toggleSidebarGroup('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span style="margin-left:auto;font-size:10px;">${isOpen?'▲':'▼'}</span></div>`;
+    if(isOpen){
+      block += s.children.map(c=>{
+        if(c.soon) return `<div class="sb-item soon" style="padding-left:36px;"><span class="sb-icon">•</span>${escapeHtml(c.label)}<span class="sb-soon-tag">Not built</span></div>`;
+        const active = currentSection===s.id && currentSubSection===c.id;
+        return `<div class="sb-item ${active?'active':''}" style="padding-left:36px;" onclick="switchSection('${s.id}','${c.id}')">${escapeHtml(c.label)}</div>`;
+      }).join('');
+    }
+    return block;
+  }).join('');
   html += SIDEBAR_SOON.map(name=>`<div class="sb-item soon"><span class="sb-icon">•</span>${escapeHtml(name)}<span class="sb-soon-tag">Not built</span></div>`).join('');
   el.innerHTML = html;
 }
-async function switchSection(id){
+function toggleSidebarGroup(id){
+  expandedSidebar[id] = !expandedSidebar[id];
+  if(expandedSidebar[id]){
+    const s = SIDEBAR_SECTIONS.find(x=>x.id===id);
+    switchSection(id, s.children.find(c=>!c.soon).id);
+  } else {
+    renderSidebar();
+  }
+}
+async function switchSection(id, subId){
   currentSection = id;
+  currentSubSection = subId || null;
   renderSidebar();
   if(id==='dashboard' && currentLine!==DASHBOARD_ID){ await switchLine(DASHBOARD_ID); return; }
   if(id!=='dashboard' && currentLine===DASHBOARD_ID){ await switchLine(PRODUCT_LINES[0].id); return; }
@@ -650,10 +691,18 @@ async function render(){
 // Sidebar section decides which of the existing blocks/buttons are shown.
 // This runs last, as a final filter on top of the isBatch/isDash logic above.
 function applySectionVisibility(isBatch){
+  function inventoryBlocks(){
+    if(currentSubSection==='categories') return ['categoriesSection'];
+    if(currentSubSection==='reserved_packages') return isBatch ? ['fulfillmentSection'] : [];
+    return isBatch ? ['batchFlavorTotalsSection','batchListSection'] : ['sellSection']; // packages / batches
+  }
+  function inventoryButtons(){
+    return currentSubSection==='categories' ? ['btnAddFlavor'] : [];
+  }
   const sectionBlocks = {
     warehouse: ['compSection'],
-    manufacturing: isBatch ? ['batchListSection'] : ['stageSection','packSection'],
-    inventory: isBatch ? ['batchFlavorTotalsSection'] : ['sellSection'],
+    manufacturing: isBatch ? [] : ['stageSection','packSection'],
+    inventory: inventoryBlocks(),
     fulfillment: isBatch ? ['fulfillmentSection'] : [],
     distribution: isBatch ? ['distributionSection'] : [],
     reports: ['logSection'],
@@ -662,13 +711,13 @@ function applySectionVisibility(isBatch){
   const sectionButtons = {
     warehouse: ['btnReceive'],
     manufacturing: isBatch ? ['btnAdvanceProduction'] : ['btnAdvance','btnPack','btnLoss'],
-    inventory: [],
+    inventory: inventoryButtons(),
     fulfillment: isBatch ? ['btnFulfillment'] : ['btnFulfill'],
     distribution: [],
     reports: ['btnReports','btnPhysicalAudit','btnBatch'],
     settings: ['btnAddFlavor','btnAdmin']
   };
-  const allBlocks = ['compSection','stageSection','packSection','sellSection','batchListSection','batchFlavorTotalsSection','fulfillmentSection','distributionSection','logSection'];
+  const allBlocks = ['compSection','stageSection','packSection','sellSection','batchListSection','batchFlavorTotalsSection','categoriesSection','fulfillmentSection','distributionSection','logSection'];
   const allButtons = ['btnReceive','btnAdvance','btnPack','btnLoss','btnAdvanceProduction','btnFulfillment','btnFulfill','btnReports','btnPhysicalAudit','btnBatch','btnAddFlavor','btnAdmin'];
   allBlocks.forEach(id=> document.getElementById(id).style.display = 'none');
   allButtons.forEach(id=> document.getElementById(id).style.display = 'none');
@@ -677,6 +726,7 @@ function applySectionVisibility(isBatch){
     if(id==='btnAdmin' && session.role!=='admin') return;
     document.getElementById(id).style.display = 'inline-block';
   });
+  if(currentSection==='inventory' && currentSubSection==='categories') renderCategoriesSection();
   document.getElementById('sharedStrip').style.display = currentSection==='warehouse' ? '' : 'none';
   document.getElementById('backlogPanel').style.display = (currentSection==='manufacturing' && !isBatch) ? '' : 'none';
 }
@@ -1080,6 +1130,11 @@ function renderPackTable(){
   foot.innerHTML = `<tr><td>TOTAL — all flavors</td>${packTotals.map(t=>`<td>${fmt(t)}</td>`).join('')}<td>${fmt(reservedTotal)}</td><td>${fmt(shippedTotal)}</td></tr>`;
 }
 
+function renderCategoriesSection(){
+  const body = document.getElementById('categoriesBody');
+  if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="2"><div class="empty">No flavors yet. Use "Add Flavor" to create one.</div></td></tr>`; return; }
+  body.innerHTML = lineData.flavors.map(f=>`<tr><td class="flavor-name">${escapeHtml(f.name)}</td><td style="font-family:monospace;">${escapeHtml(f.code || initials(f.name))}</td></tr>`).join('');
+}
 function renderLog(){
   const el = document.getElementById('logList');
   if(lineData.transactions.length===0){ el.innerHTML = `<div class="empty">No activity logged yet for ${escapeHtml(pl().name)}.</div>`; return; }
