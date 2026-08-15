@@ -241,7 +241,16 @@
   </section>
 
   <section class="block" id="categoriesSection" style="display:none;">
-    <h2 class="head">Categories (Flavors)</h2>
+    <h2 class="head">Categories</h2>
+    <div class="hint" style="margin-bottom:10px;">Categories can be managed by quantity type.</div>
+    <div class="field" style="max-width:220px;"><label>Type</label><select id="catTypeFilter"><option value="">All</option><option value="weight">Weight Based</option><option value="volume">Volume Based</option><option value="count">Count Based</option></select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:12px;">
+      <div class="dash-card"><h3 style="display:flex;justify-content:space-between;align-items:center;">Weight Based <button class="ghost small" onclick="openAddCategory('weight')">+ Add</button></h3><div id="catListWeight"></div></div>
+      <div class="dash-card"><h3 style="display:flex;justify-content:space-between;align-items:center;">Volume Based <button class="ghost small" onclick="openAddCategory('volume')">+ Add</button></h3><div id="catListVolume"></div></div>
+      <div class="dash-card"><h3 style="display:flex;justify-content:space-between;align-items:center;">Count Based <button class="ghost small" onclick="openAddCategory('count')">+ Add</button></h3><div id="catListCount"></div></div>
+    </div>
+
+    <h2 class="head" style="margin-top:24px;">Flavors</h2>
     <div class="tblwrap"><table id="categoriesTable"><thead><tr><th>Flavor</th><th>Batch Code Prefix</th></tr></thead><tbody id="categoriesBody"></tbody></table></div>
   </section>
 
@@ -592,6 +601,14 @@
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateNcItem')">Cancel</button><button class="primary" onclick="submitCreateNcItem()">Create Item</button></div>
 </div></div>
 
+<div class="overlay" id="modalAddCategory"><div class="modal">
+  <h3>Add Category</h3>
+  <div class="hint" style="margin-bottom:10px;" id="catAddTypeLabel"></div>
+  <div class="field"><label>Category Name</label><input id="catAddName"></div>
+  <div class="err" id="catAddErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAddCategory')">Cancel</button><button class="primary" onclick="submitAddCategory()">Add</button></div>
+</div></div>
+
 <div class="overlay" id="modalCreateBomTemplate"><div class="modal" style="max-width:640px;">
   <h3>Create Template</h3>
   <div class="field"><label>Template Name</label><input id="bomTplName"></div>
@@ -669,6 +686,7 @@
   <div class="err" id="pbErr"></div>
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateProductionBatch')">Cancel</button><button class="primary" onclick="submitCreateProductionBatch()">Create Production Batch</button></div>
 </div></div>
+
 
 
 
@@ -1803,6 +1821,38 @@ function renderCategoriesSection(){
   const body = document.getElementById('categoriesBody');
   if(lineData.flavors.length===0){ body.innerHTML = `<tr><td colspan="2"><div class="empty">No flavors yet. Use "Add Flavor" to create one.</div></td></tr>`; return; }
   body.innerHTML = lineData.flavors.map(f=>`<tr><td class="flavor-name">${escapeHtml(f.name)}</td><td style="font-family:monospace;">${escapeHtml(f.code || initials(f.name))}</td></tr>`).join('');
+  loadAndRenderCategoryTaxonomy();
+}
+let categoriesTaxonomyData = [];
+async function loadAndRenderCategoryTaxonomy(){
+  const { data, error } = await sb.from('mi_categories').select('*').order('name');
+  if(error){ showError('Could not load categories: ' + error.message); return; }
+  categoriesTaxonomyData = data || [];
+  renderCategoryLists();
+}
+function renderCategoryLists(){
+  ['weight','volume','count'].forEach(type=>{
+    const el = document.getElementById('catList'+type.charAt(0).toUpperCase()+type.slice(1));
+    const rows = categoriesTaxonomyData.filter(c=>c.quantity_type===type);
+    el.innerHTML = rows.length===0 ? `<div class="hint">No categories yet.</div>` : rows.map(c=>`<div class="dash-row"><span>${escapeHtml(c.name)}</span></div>`).join('');
+  });
+}
+let catAddType = 'weight';
+function openAddCategory(type){
+  catAddType = type;
+  document.getElementById('catAddTypeLabel').textContent = `Adding to: ${type.charAt(0).toUpperCase()+type.slice(1)} Based`;
+  document.getElementById('catAddName').value=''; document.getElementById('catAddErr').classList.remove('show');
+  openModal('modalAddCategory');
+}
+async function submitAddCategory(){
+  const errEl = document.getElementById('catAddErr');
+  const name = document.getElementById('catAddName').value.trim();
+  if(!name){ errEl.textContent='Enter a category name.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_add_category', { p_token: session.token, p_name: name, p_quantity_type: catAddType, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalAddCategory');
+  await loadAndRenderCategoryTaxonomy();
 }
 function renderLog(){
   const el = document.getElementById('logList');
