@@ -205,6 +205,21 @@
     <div class="tblwrap"><table id="pbTable"><thead><tr><th>Production Batch Name</th><th>Item</th><th>Amount Created</th><th>Status</th><th>Packages Created</th></tr></thead><tbody id="pbBody"></tbody></table></div>
   </section>
 
+  <section class="block" id="bomTemplatesSection" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <div>
+        <h2 class="head" style="margin:0;">Bill of Materials Template</h2>
+        <div class="hint">Create and apply templates to cannabis items</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="ghost">Bulk Import</button>
+        <button class="primary" id="btnCreateBomTemplate">Create Template</button>
+      </div>
+    </div>
+    <div class="field" style="max-width:280px;margin:12px 0;"><input id="bomTemplateSearch" placeholder="Search..." oninput="renderBomTemplatesList()"></div>
+    <div class="tblwrap"><table id="bomTemplatesTable"><thead><tr><th>Name</th><th>Output Items</th><th>Items Used</th></tr></thead><tbody id="bomTemplatesBody"></tbody></table></div>
+  </section>
+
   <section class="block" id="sellSection">
     <h2 class="head" id="sellableHead">Sellable Units</h2>
     <div class="tblwrap"><table id="sellTable"><thead><tr><th>Flavor</th><th>Available to Pack</th></tr></thead><tbody id="sellBody"></tbody><tfoot id="sellFoot"></tfoot></table></div>
@@ -256,6 +271,18 @@
       <button class="ghost small">Applicable To</button>
     </div>
     <div class="tblwrap"><table id="ncItemsTable"><thead><tr><th>Item Name</th><th>Brand</th><th>Category</th><th>SKU Identifier</th><th>Applicable To</th></tr></thead><tbody id="ncItemsBody"></tbody></table></div>
+  </section>
+
+  <section class="block" id="lotsSection" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <div>
+        <h2 class="head" style="margin:0;">Lots</h2>
+        <div class="hint">Manage the non-cannabis lots at your facility</div>
+      </div>
+      <button class="primary" id="btnAddLot">Create Lot</button>
+    </div>
+    <div class="field" style="max-width:280px;margin:12px 0;"><input id="lotSearch" placeholder="Search..." oninput="renderLotsList()"></div>
+    <div class="tblwrap"><table id="lotsTable"><thead><tr><th>Name</th><th>Item</th><th>Allocated To</th><th>Location</th><th>Date Received</th><th>Expiration Date</th></tr></thead><tbody id="lotsBody"></tbody></table></div>
   </section>
 
   <section class="block" id="fulfillmentSection" style="display:none;">
@@ -565,6 +592,49 @@
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateNcItem')">Cancel</button><button class="primary" onclick="submitCreateNcItem()">Create Item</button></div>
 </div></div>
 
+<div class="overlay" id="modalCreateBomTemplate"><div class="modal" style="max-width:640px;">
+  <h3>Create Template</h3>
+  <div class="field"><label>Template Name</label><input id="bomTplName"></div>
+
+  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Output Items</div>
+    <div class="field"><label>Item</label><select id="bomTplOutput"></select></div>
+  </div>
+
+  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Cannabis Materials Used</div>
+    <div id="bomTplCannabisRows"></div>
+    <button class="ghost small" onclick="addBomTplRow('cannabis')">+ Add Item</button>
+  </div>
+
+  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Non-Cannabis Materials Used</div>
+    <div id="bomTplNonCannabisRows"></div>
+    <button class="ghost small" onclick="addBomTplRow('noncannabis')">+ Add Item</button>
+  </div>
+
+  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:6px;">Cost Categories Used</div>
+    <div class="hint" style="margin-bottom:8px;">Optional label for costing purposes — not yet tied to full cost accounting.</div>
+    <div class="field"><label>Cost Category</label><input id="bomTplCostCategory" placeholder="Optional"></div>
+  </div>
+
+  <div class="err" id="bomTplErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateBomTemplate')">Cancel</button><button class="primary" onclick="submitCreateBomTemplate()">Create Template</button></div>
+</div></div>
+
+<div class="overlay" id="modalCreateLot"><div class="modal">
+  <h3>Create Lot</h3>
+  <div class="field"><label>Lot Name</label><input id="lotName"></div>
+  <div class="field"><label>Item</label><select id="lotItem"></select></div>
+  <div class="field"><label>Location</label><input id="lotLocation"></div>
+  <div class="field"><label>Date Received</label><input id="lotDateReceived" type="date"></div>
+  <div class="field"><label>Expiration Date</label><input id="lotExpiration" type="date"></div>
+  <div class="field"><label>Quantity</label><input id="lotQuantity" type="number"></div>
+  <div class="err" id="lotErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateLot')">Cancel</button><button class="primary" onclick="submitCreateLot()">Create Lot</button></div>
+</div></div>
+
 <div class="overlay" id="modalCreateProductionBatch"><div class="modal" style="max-width:680px;">
   <h3>Create Production Batch</h3>
 
@@ -599,6 +669,8 @@
   <div class="err" id="pbErr"></div>
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateProductionBatch')">Cancel</button><button class="primary" onclick="submitCreateProductionBatch()">Create Production Batch</button></div>
 </div></div>
+
+
 
 
 
@@ -712,7 +784,7 @@ const SIDEBAR_SECTIONS = [
     {id:'noncannabis_items', label:'Non-cannabis Items'},
     {id:'batches', label:'Batches'},
     {id:'categories', label:'Categories'},
-    {id:'lots', label:'Lots', soon:true},
+    {id:'lots', label:'Lots'},
     {id:'reserved_packages', label:'Reserved Packages'},
     {id:'forecasting', label:'Forecasting', soon:true}
   ]},
@@ -865,6 +937,7 @@ function applySectionVisibility(isBatch){
     if(currentSubSection==='categories') return ['categoriesSection'];
     if(currentSubSection==='cannabis_items') return ['itemsSection'];
     if(currentSubSection==='noncannabis_items') return ['ncItemsSection'];
+    if(currentSubSection==='lots') return ['lotsSection'];
     if(currentSubSection==='reserved_packages') return isBatch ? ['fulfillmentSection'] : [];
     return isBatch ? ['batchFlavorTotalsSection','batchListSection'] : ['sellSection']; // packages / batches
   }
@@ -872,11 +945,12 @@ function applySectionVisibility(isBatch){
     if(currentSubSection==='categories') return ['btnAddFlavor'];
     if(currentSubSection==='cannabis_items') return ['btnAddItem'];
     if(currentSubSection==='noncannabis_items') return ['btnAddNcItem'];
+    if(currentSubSection==='lots') return ['btnAddLot'];
     return [];
   }
   const sectionBlocks = {
     warehouse: ['compSection'],
-    manufacturing: isBatch ? ['productionBatchesSection'] : ['stageSection','packSection','productionBatchesSection'],
+    manufacturing: isBatch ? ['productionBatchesSection','bomTemplatesSection'] : ['stageSection','packSection','productionBatchesSection','bomTemplatesSection'],
     inventory: inventoryBlocks(),
     fulfillment: isBatch ? ['fulfillmentSection'] : [],
     distribution: isBatch ? ['distributionSection'] : [],
@@ -885,15 +959,15 @@ function applySectionVisibility(isBatch){
   };
   const sectionButtons = {
     warehouse: ['btnReceive'],
-    manufacturing: isBatch ? ['btnAdvanceProduction','btnCreateProductionBatch'] : ['btnAdvance','btnPack','btnLoss','btnCreateProductionBatch'],
+    manufacturing: isBatch ? ['btnAdvanceProduction','btnCreateProductionBatch','btnCreateBomTemplate'] : ['btnAdvance','btnPack','btnLoss','btnCreateProductionBatch','btnCreateBomTemplate'],
     inventory: inventoryButtons(),
     fulfillment: isBatch ? ['btnFulfillment'] : ['btnFulfill'],
     distribution: [],
     reports: ['btnReports','btnPhysicalAudit','btnBatch'],
     settings: ['btnAddFlavor','btnAdmin']
   };
-  const allBlocks = ['compSection','stageSection','packSection','sellSection','batchListSection','batchFlavorTotalsSection','categoriesSection','itemsSection','ncItemsSection','productionBatchesSection','fulfillmentSection','distributionSection','logSection'];
-  const allButtons = ['btnReceive','btnAdvance','btnPack','btnLoss','btnAdvanceProduction','btnCreateProductionBatch','btnFulfillment','btnFulfill','btnReports','btnPhysicalAudit','btnBatch','btnAddFlavor','btnAddItem','btnAddNcItem','btnAdmin'];
+  const allBlocks = ['compSection','stageSection','packSection','sellSection','batchListSection','batchFlavorTotalsSection','categoriesSection','itemsSection','ncItemsSection','lotsSection','productionBatchesSection','bomTemplatesSection','fulfillmentSection','distributionSection','logSection'];
+  const allButtons = ['btnReceive','btnAdvance','btnPack','btnLoss','btnAdvanceProduction','btnCreateProductionBatch','btnCreateBomTemplate','btnFulfillment','btnFulfill','btnReports','btnPhysicalAudit','btnBatch','btnAddFlavor','btnAddItem','btnAddNcItem','btnAddLot','btnAdmin'];
   allBlocks.forEach(id=> document.getElementById(id).style.display = 'none');
   allButtons.forEach(id=> document.getElementById(id).style.display = 'none');
   (sectionBlocks[currentSection]||[]).forEach(id=> document.getElementById(id).style.display = '');
@@ -904,7 +978,8 @@ function applySectionVisibility(isBatch){
   if(currentSection==='inventory' && currentSubSection==='categories') renderCategoriesSection();
   if(currentSection==='inventory' && currentSubSection==='cannabis_items') loadAndRenderItems();
   if(currentSection==='inventory' && currentSubSection==='noncannabis_items') loadAndRenderNcItems();
-  if(currentSection==='manufacturing') loadAndRenderProductionBatches();
+  if(currentSection==='inventory' && currentSubSection==='lots') loadAndRenderLots();
+  if(currentSection==='manufacturing'){ loadAndRenderProductionBatches(); loadAndRenderBomTemplates(); }
   document.getElementById('sharedStrip').style.display = currentSection==='warehouse' ? '' : 'none';
   document.getElementById('backlogPanel').style.display = (currentSection==='manufacturing' && !isBatch) ? '' : 'none';
 }
@@ -1600,6 +1675,128 @@ function renderProductionBatchesList(){
     const uom = item ? item.unit_of_measure : '';
     return `<tr><td style="font-family:monospace;">${escapeHtml(b.batch_name)}</td><td>${escapeHtml(b.item_name_snapshot||'—')}</td><td>${fmt(b.actual_quantity||b.estimated_quantity||0)} ${escapeHtml(uom||'')}</td><td>${escapeHtml(b.status)}</td><td>${fmt(b.packagesCreated)}</td></tr>`;
   }).join('');
+}
+
+// ---------- LOTS ----------
+document.getElementById('btnAddLot').onclick = async ()=>{
+  ['lotName','lotLocation','lotDateReceived','lotExpiration','lotQuantity'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('lotErr').classList.remove('show');
+  if(ncItemsData.length===0) await loadAndRenderNcItems();
+  document.getElementById('lotItem').innerHTML = ncItemsData.map(i=>`<option value="${i.id}" data-name="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</option>`).join('') || '<option value="">No non-cannabis items yet — create one first</option>';
+  openModal('modalCreateLot');
+};
+async function submitCreateLot(){
+  const errEl = document.getElementById('lotErr');
+  const name = document.getElementById('lotName').value.trim();
+  if(!name){ errEl.textContent='Enter a lot name.'; errEl.classList.add('show'); return; }
+  const itemSel = document.getElementById('lotItem');
+  const itemName = itemSel.selectedOptions[0] ? itemSel.selectedOptions[0].dataset.name : '';
+  const lot = {
+    lot_name: name, nc_item_id: itemSel.value, item_name_snapshot: itemName,
+    location: document.getElementById('lotLocation').value.trim(),
+    date_received: document.getElementById('lotDateReceived').value,
+    expiration_date: document.getElementById('lotExpiration').value,
+    quantity: document.getElementById('lotQuantity').value.trim()
+  };
+  const { error } = await sb.rpc('mi_create_lot', { p_token: session.token, p_lot: lot, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCreateLot');
+  await loadAndRenderLots();
+}
+let lotsData = [];
+async function loadAndRenderLots(){
+  const { data, error } = await sb.from('mi_lots').select('*').order('created_at',{ascending:false});
+  if(error){ showError('Could not load lots: ' + error.message); return; }
+  lotsData = data || [];
+  renderLotsList();
+}
+function renderLotsList(){
+  const q = (document.getElementById('lotSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('lotsBody');
+  let rows = lotsData;
+  if(q) rows = rows.filter(l=> (l.lot_name||'').toLowerCase().includes(q) || (l.item_name_snapshot||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="6"><div class="empty">No lots yet. Click "Create Lot" to add one.</div></td></tr>`; return; }
+  body.innerHTML = rows.map(l=>`<tr><td class="flavor-name">${escapeHtml(l.lot_name)}</td><td>${escapeHtml(l.item_name_snapshot||'--')}</td><td>${escapeHtml(l.allocated_to||'--')}</td><td>${escapeHtml(l.location||'--')}</td><td>${l.date_received||'--'}</td><td>${l.expiration_date||'--'}</td></tr>`).join('');
+}
+
+// ---------- BILL OF MATERIALS TEMPLATES ----------
+let bomTplCannabisRows = [];
+let bomTplNonCannabisRows = [];
+function renderBomTplMaterialRows(type){
+  const rows = type==='cannabis' ? bomTplCannabisRows : bomTplNonCannabisRows;
+  const containerId = type==='cannabis' ? 'bomTplCannabisRows' : 'bomTplNonCannabisRows';
+  const catalog = type==='cannabis' ? itemsData : ncItemsData;
+  const el = document.getElementById(containerId);
+  el.innerHTML = rows.map((row,i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;">
+      <div class="field" style="flex:2;margin-bottom:0;"><label>Item</label><select onchange="updateBomTplRow('${type}',${i},this.value)">
+        <option value="">Select an item</option>
+        ${catalog.map(it=>`<option value="${escapeHtml(it.item_name)}">${escapeHtml(it.item_name)}</option>`).join('')}
+      </select></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updateBomTplRowQty('${type}',${i},this.value)"></div>
+      <button class="ghost small" onclick="removeBomTplRow('${type}',${i})">✕</button>
+    </div>`).join('') || `<div class="hint">No items added yet.</div>`;
+  const selects = el.querySelectorAll('select');
+  rows.forEach((row,i)=>{ if(selects[i]) selects[i].value = row.itemName || ''; });
+}
+function updateBomTplRow(type, i, value){ (type==='cannabis'?bomTplCannabisRows:bomTplNonCannabisRows)[i].itemName = value; }
+function updateBomTplRowQty(type, i, value){ (type==='cannabis'?bomTplCannabisRows:bomTplNonCannabisRows)[i].quantity = value; }
+function addBomTplRow(type){
+  if(type==='cannabis') bomTplCannabisRows.push({itemName:'',quantity:''});
+  else bomTplNonCannabisRows.push({itemName:'',quantity:''});
+  renderBomTplMaterialRows(type);
+}
+function removeBomTplRow(type, i){
+  if(type==='cannabis') bomTplCannabisRows.splice(i,1); else bomTplNonCannabisRows.splice(i,1);
+  renderBomTplMaterialRows(type);
+}
+document.getElementById('btnCreateBomTemplate').onclick = async ()=>{
+  document.getElementById('bomTplName').value=''; document.getElementById('bomTplCostCategory').value='';
+  document.getElementById('bomTplErr').classList.remove('show');
+  if(itemsData.length===0) await loadAndRenderItems();
+  if(ncItemsData.length===0) await loadAndRenderNcItems();
+  document.getElementById('bomTplOutput').innerHTML = itemsData.map(i=>`<option value="${i.id}" data-name="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</option>`).join('') || '<option value="">No cannabis items yet — create one first</option>';
+  bomTplCannabisRows = []; bomTplNonCannabisRows = [];
+  renderBomTplMaterialRows('cannabis'); renderBomTplMaterialRows('noncannabis');
+  openModal('modalCreateBomTemplate');
+};
+async function submitCreateBomTemplate(){
+  const errEl = document.getElementById('bomTplErr');
+  const name = document.getElementById('bomTplName').value.trim();
+  if(!name){ errEl.textContent='Enter a template name.'; errEl.classList.add('show'); return; }
+  const outputSel = document.getElementById('bomTplOutput');
+  const outputName = outputSel.selectedOptions[0] ? outputSel.selectedOptions[0].dataset.name : '';
+  const template = { template_name: name, output_item_id: outputSel.value, output_item_name: outputName };
+  const lines = [
+    ...bomTplCannabisRows.filter(r=>r.itemName).map(r=>({material_type:'cannabis', item_name:r.itemName, quantity:r.quantity})),
+    ...bomTplNonCannabisRows.filter(r=>r.itemName).map(r=>({material_type:'noncannabis', item_name:r.itemName, quantity:r.quantity}))
+  ];
+  const { error } = await sb.rpc('mi_create_bom_template', { p_token: session.token, p_template: template, p_lines: lines, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCreateBomTemplate');
+  await loadAndRenderBomTemplates();
+}
+let bomTemplatesData = [];
+async function loadAndRenderBomTemplates(){
+  const [tplR, linesR] = await Promise.all([
+    sb.from('mi_bom_templates').select('*').order('created_at',{ascending:false}),
+    sb.from('mi_bom_template_lines').select('*')
+  ]);
+  if(tplR.error){ showError('Could not load BOM templates: ' + tplR.error.message); return; }
+  const linesByTpl = {};
+  (linesR.data||[]).forEach(l=>{ linesByTpl[l.template_id] = linesByTpl[l.template_id]||[]; linesByTpl[l.template_id].push(l.item_name); });
+  bomTemplatesData = (tplR.data||[]).map(t=>({...t, itemsUsed: (linesByTpl[t.id]||[]).join(', ')}));
+  renderBomTemplatesList();
+}
+function renderBomTemplatesList(){
+  const q = (document.getElementById('bomTemplateSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('bomTemplatesBody');
+  let rows = bomTemplatesData;
+  if(q) rows = rows.filter(t=> (t.template_name||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="3"><div class="empty">No templates yet. Click "Create Template" to add one.</div></td></tr>`; return; }
+  body.innerHTML = rows.map(t=>`<tr><td class="flavor-name">${escapeHtml(t.template_name)}</td><td>${escapeHtml(t.output_item_name||'--')}</td><td>${escapeHtml(t.itemsUsed||'--')}</td></tr>`).join('');
 }
 
 function renderCategoriesSection(){
