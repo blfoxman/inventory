@@ -39,6 +39,10 @@
   .toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
   button.primary,button.ghost{font-size:13px;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600;border:1px solid var(--line);}
   button.small{padding:5px 9px;font-size:12px;}
+  .ncsub-row{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;}
+  .ncsub-row:hover{background:var(--panel2);}
+  .ncsub-title{font-weight:600;font-size:13px;margin-bottom:2px;}
+  .ncsub-body{padding:4px 14px 14px;border-bottom:1px solid var(--line);background:var(--panel2);}
   button.primary{background:var(--amber);color:#1a1509;border-color:var(--amber);}
   button.primary:hover{filter:brightness(1.08);}
   button.ghost{background:transparent;color:var(--text);}
@@ -189,6 +193,18 @@
     <div class="tblwrap"><table id="stageTable"><thead><tr id="stageHead"></tr></thead><tbody id="stageBody"></tbody><tfoot id="stageFoot"></tfoot></table></div>
   </section>
 
+  <section class="block" id="productionBatchesSection" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <div>
+        <h2 class="head" style="margin:0;">Production Batches</h2>
+        <div class="hint">Keep track of the creation of finished goods from raw materials at the facility</div>
+      </div>
+      <button class="primary" id="btnCreateProductionBatch">Create Production Batch</button>
+    </div>
+    <div class="field" style="max-width:280px;margin:12px 0;"><input id="pbSearch" placeholder="Search for a batch name..." oninput="renderProductionBatchesList()"></div>
+    <div class="tblwrap"><table id="pbTable"><thead><tr><th>Production Batch Name</th><th>Item</th><th>Amount Created</th><th>Status</th><th>Packages Created</th></tr></thead><tbody id="pbBody"></tbody></table></div>
+  </section>
+
   <section class="block" id="sellSection">
     <h2 class="head" id="sellableHead">Sellable Units</h2>
     <div class="tblwrap"><table id="sellTable"><thead><tr><th>Flavor</th><th>Available to Pack</th></tr></thead><tbody id="sellBody"></tbody><tfoot id="sellFoot"></tfoot></table></div>
@@ -221,6 +237,25 @@
     </div>
     <div class="field" style="max-width:340px;"><input id="itemSearch" placeholder="Search by name or category..." oninput="renderItemsList()"></div>
     <div class="tblwrap" style="margin-top:12px;"><table id="itemsTable"><thead><tr><th>Item Name</th><th>Compliance Category</th><th>Product Category</th><th>Unit of Measure</th><th>Brand</th></tr></thead><tbody id="itemsBody"></tbody></table></div>
+  </section>
+
+  <section class="block" id="ncItemsSection" style="display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <div>
+        <h2 class="head" style="margin:0;">Non-cannabis Items</h2>
+        <div class="hint">Manage the non-cannabis items at your facility</div>
+      </div>
+      <button class="primary" id="btnAddNcItem">Add New Item</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0;">
+      <input id="ncItemSearch" placeholder="Search by name or category..." style="max-width:280px;" oninput="renderNcItemsList()">
+      <button class="ghost small">Category</button>
+      <button class="ghost small">Brand</button>
+      <button class="ghost small">Available Inventory</button>
+      <label style="font-size:12.5px;color:var(--dim);display:flex;align-items:center;gap:5px;"><input type="checkbox" disabled> View Items Below PAR</label>
+      <button class="ghost small">Applicable To</button>
+    </div>
+    <div class="tblwrap"><table id="ncItemsTable"><thead><tr><th>Item Name</th><th>Brand</th><th>Category</th><th>SKU Identifier</th><th>Applicable To</th></tr></thead><tbody id="ncItemsBody"></tbody></table></div>
   </section>
 
   <section class="block" id="fulfillmentSection" style="display:none;">
@@ -454,13 +489,120 @@
   <div class="field"><label>Product Category (Optional)</label><select id="itProductCat"><option value="">—</option></select></div>
   <div class="field"><label>Unit of Measure</label><select id="itUom"></select></div>
   <div class="field"><label>Price (Optional)</label><input id="itPrice" type="number" step="0.01" placeholder="0.00"></div>
-  <div class="field"><label>Item Brand (Optional)</label><input id="itBrand"></div>
+  <div class="field"><label>Item Brand (Optional)</label><select id="itBrand"></select></div>
 
   <div id="itDynamicFields"></div>
 
   <div class="err" id="itErr"></div>
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateItem')">Cancel</button><button class="primary" onclick="submitCreateItem()">Create Item</button></div>
 </div></div>
+
+<div class="overlay" id="modalCreateNcItem"><div class="modal" style="max-width:560px;">
+  <h3>Create a Non-Cannabis Item</h3>
+  <div class="hint" style="margin-bottom:12px;">Create a new item to use at your facility.</div>
+
+  <div class="field"><label>Item Name</label><input id="ncName"></div>
+  <div class="field"><label>Unit of Measure</label><select id="ncUom"><option value="">—</option><option>Each</option><option>Grams</option><option>Kilograms</option><option>Milligrams</option><option>Ounces</option><option>Pounds</option><option>Milliliters</option><option>Liters</option></select></div>
+  <div class="field"><label>Purchase UoM (Optional)</label><select id="ncPurchaseUom"><option value="">—</option><option>Each</option><option>Case</option><option>Box</option><option>Pallet</option></select></div>
+  <div class="field"><label>Conversion Factor (Optional)</label><input id="ncConversion" type="number" step="0.01"></div>
+  <div class="field"><label>Brand (Optional)</label><select id="ncBrand"></select></div>
+  <div class="field"><label>Category (Optional)</label><input id="ncCategory"></div>
+  <div class="field"><label>Applicable To</label>
+    <div style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13px;">
+      <label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="ncApplicable" checked> Black Fox Manufacturing, LC</label>
+    </div>
+  </div>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin:12px 0;font-size:13px;">
+    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="ncExcludeDiscounts"> Exclude from Discounts</label>
+    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="ncNonInventory"> Non-Inventory Item</label>
+    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="ncSellable"> Sellable</label>
+    <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="ncAdditive"> Additive</label>
+  </div>
+
+  <div style="border:1px solid var(--line);border-radius:var(--radius);margin-top:4px;overflow:hidden;">
+    <div style="padding:12px 14px;border-bottom:1px solid var(--line);">
+      <div style="font-weight:700;font-size:14px;">Inventory Settings</div>
+      <div class="hint">Set defaults like package quantity, PAR levels, shelf life, and more for better inventory management.</div>
+    </div>
+
+    <div class="ncsub-row" onclick="toggleNcSub('par')">
+      <div><div class="ncsub-title">Periodic Automatic Replacement (PAR) Levels (Optional)</div><div class="hint">These values indicate when a production run should begin for this item.</div></div>
+      <span id="ncsub-chev-par">▼</span>
+    </div>
+    <div class="ncsub-body" id="ncsub-body-par" style="display:none;">
+      <div style="display:flex;gap:10px;">
+        <div class="field" style="flex:1;"><label>PAR Min</label><input id="ncParMin" type="number"></div>
+        <div class="field" style="flex:1;"><label>PAR Max</label><input id="ncParMax" type="number"></div>
+      </div>
+    </div>
+
+    <div class="ncsub-row" onclick="toggleNcSub('starting')">
+      <div><div class="ncsub-title">Starting Inventory (Optional)</div><div class="hint">Do you have existing inventory? Enter the current amount so we can start tracking accurately.</div></div>
+      <span id="ncsub-chev-starting">▼</span>
+    </div>
+    <div class="ncsub-body" id="ncsub-body-starting" style="display:none;">
+      <div class="field"><label>Current Amount</label><input id="ncStartingInventory" type="number"></div>
+    </div>
+
+    <div class="ncsub-row" onclick="toggleNcSub('custom')">
+      <div><div class="ncsub-title">Custom Identification (Optional)</div><div class="hint">Set a custom SKU to help easily identify the item during reporting.</div></div>
+      <span id="ncsub-chev-custom">▼</span>
+    </div>
+    <div class="ncsub-body" id="ncsub-body-custom" style="display:none;">
+      <div class="field"><label>Custom SKU</label><input id="ncSku"></div>
+    </div>
+
+    <div class="ncsub-row" onclick="toggleNcSub('shelf')" style="border-bottom:none;">
+      <div><div class="ncsub-title">Shelf Life (Optional)</div><div class="hint">Never lose inventory to expired products. Expiry dates are automatically calculated based on each item's production date.</div></div>
+      <span id="ncsub-chev-shelf">▼</span>
+    </div>
+    <div class="ncsub-body" id="ncsub-body-shelf" style="display:none;">
+      <div class="field"><label>Shelf Life (Days)</label><input id="ncShelfLife" type="number"></div>
+    </div>
+  </div>
+
+  <div class="err" id="ncErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateNcItem')">Cancel</button><button class="primary" onclick="submitCreateNcItem()">Create Item</button></div>
+</div></div>
+
+<div class="overlay" id="modalCreateProductionBatch"><div class="modal" style="max-width:680px;">
+  <h3>Create Production Batch</h3>
+
+  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Overview</div>
+    <div class="field"><label>Production Batch Name (Optional)</label><input id="pbName" placeholder="Auto-generated if left blank"></div>
+    <div class="field"><label>Item Being Produced</label><select id="pbItem"></select></div>
+    <div style="display:flex;gap:10px;">
+      <div class="field" style="flex:1;"><label>Number of Packages</label><input id="pbNumPackages" type="number" value="1" min="1" onchange="syncPackageRowCount()"></div>
+      <div class="field" style="flex:1;"><label>Estimated Quantity</label><input id="pbEstQty" type="number"></div>
+      <div class="field" style="flex:1;"><label>Actual Quantity</label><input id="pbActQty" type="number"></div>
+    </div>
+    <div class="field"><label>Starting Tag</label><input id="pbStartingTag" placeholder="Auto-generated"></div>
+    <div style="display:flex;gap:16px;font-size:13px;">
+      <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="pbComplianceBatch"> Compliance Batch</label>
+      <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="pbRequiresTesting"> Requires Testing</label>
+    </div>
+  </div>
+
+  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Bill of Materials</div>
+    <div id="pbBomRowsContainer"></div>
+    <button class="ghost small" onclick="addBomRow()">+ Add New Item/Category</button>
+  </div>
+
+  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Package(s) Created</div>
+    <div id="pbPackageRowsContainer"></div>
+    <button class="ghost small" onclick="addPackageRow()">+ Create Another Package</button>
+  </div>
+
+  <div class="err" id="pbErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateProductionBatch')">Cancel</button><button class="primary" onclick="submitCreateProductionBatch()">Create Production Batch</button></div>
+</div></div>
+
+
+
+
 
 
 
@@ -567,7 +709,7 @@ const SIDEBAR_SECTIONS = [
   {id:'inventory', label:'Inventory', icon:'📋', children:[
     {id:'packages', label:'Packages'},
     {id:'cannabis_items', label:'Cannabis Items'},
-    {id:'noncannabis_items', label:'Non-cannabis Items', soon:true},
+    {id:'noncannabis_items', label:'Non-cannabis Items'},
     {id:'batches', label:'Batches'},
     {id:'categories', label:'Categories'},
     {id:'lots', label:'Lots', soon:true},
@@ -722,17 +864,19 @@ function applySectionVisibility(isBatch){
   function inventoryBlocks(){
     if(currentSubSection==='categories') return ['categoriesSection'];
     if(currentSubSection==='cannabis_items') return ['itemsSection'];
+    if(currentSubSection==='noncannabis_items') return ['ncItemsSection'];
     if(currentSubSection==='reserved_packages') return isBatch ? ['fulfillmentSection'] : [];
     return isBatch ? ['batchFlavorTotalsSection','batchListSection'] : ['sellSection']; // packages / batches
   }
   function inventoryButtons(){
     if(currentSubSection==='categories') return ['btnAddFlavor'];
     if(currentSubSection==='cannabis_items') return ['btnAddItem'];
+    if(currentSubSection==='noncannabis_items') return ['btnAddNcItem'];
     return [];
   }
   const sectionBlocks = {
     warehouse: ['compSection'],
-    manufacturing: isBatch ? [] : ['stageSection','packSection'],
+    manufacturing: isBatch ? ['productionBatchesSection'] : ['stageSection','packSection','productionBatchesSection'],
     inventory: inventoryBlocks(),
     fulfillment: isBatch ? ['fulfillmentSection'] : [],
     distribution: isBatch ? ['distributionSection'] : [],
@@ -741,15 +885,15 @@ function applySectionVisibility(isBatch){
   };
   const sectionButtons = {
     warehouse: ['btnReceive'],
-    manufacturing: isBatch ? ['btnAdvanceProduction'] : ['btnAdvance','btnPack','btnLoss'],
+    manufacturing: isBatch ? ['btnAdvanceProduction','btnCreateProductionBatch'] : ['btnAdvance','btnPack','btnLoss','btnCreateProductionBatch'],
     inventory: inventoryButtons(),
     fulfillment: isBatch ? ['btnFulfillment'] : ['btnFulfill'],
     distribution: [],
     reports: ['btnReports','btnPhysicalAudit','btnBatch'],
     settings: ['btnAddFlavor','btnAdmin']
   };
-  const allBlocks = ['compSection','stageSection','packSection','sellSection','batchListSection','batchFlavorTotalsSection','categoriesSection','itemsSection','fulfillmentSection','distributionSection','logSection'];
-  const allButtons = ['btnReceive','btnAdvance','btnPack','btnLoss','btnAdvanceProduction','btnFulfillment','btnFulfill','btnReports','btnPhysicalAudit','btnBatch','btnAddFlavor','btnAddItem','btnAdmin'];
+  const allBlocks = ['compSection','stageSection','packSection','sellSection','batchListSection','batchFlavorTotalsSection','categoriesSection','itemsSection','ncItemsSection','productionBatchesSection','fulfillmentSection','distributionSection','logSection'];
+  const allButtons = ['btnReceive','btnAdvance','btnPack','btnLoss','btnAdvanceProduction','btnCreateProductionBatch','btnFulfillment','btnFulfill','btnReports','btnPhysicalAudit','btnBatch','btnAddFlavor','btnAddItem','btnAddNcItem','btnAdmin'];
   allBlocks.forEach(id=> document.getElementById(id).style.display = 'none');
   allButtons.forEach(id=> document.getElementById(id).style.display = 'none');
   (sectionBlocks[currentSection]||[]).forEach(id=> document.getElementById(id).style.display = '');
@@ -759,6 +903,8 @@ function applySectionVisibility(isBatch){
   });
   if(currentSection==='inventory' && currentSubSection==='categories') renderCategoriesSection();
   if(currentSection==='inventory' && currentSubSection==='cannabis_items') loadAndRenderItems();
+  if(currentSection==='inventory' && currentSubSection==='noncannabis_items') loadAndRenderNcItems();
+  if(currentSection==='manufacturing') loadAndRenderProductionBatches();
   document.getElementById('sharedStrip').style.display = currentSection==='warehouse' ? '' : 'none';
   document.getElementById('backlogPanel').style.display = (currentSection==='manufacturing' && !isBatch) ? '' : 'none';
 }
@@ -1188,12 +1334,38 @@ function categoryProfile(cat){
   }
   return { uom: ['Each','Grams','Kilograms','Milligrams','Ounces','Pounds'], strain: false, dosed: false, weight: false };
 }
+// ---------- SHARED BRAND DROPDOWN (used by both Cannabis and Non-cannabis Items) ----------
+let brandsCache = [];
+async function fetchBrands(){
+  const { data, error } = await sb.from('mi_brands').select('*').order('name');
+  if(!error) brandsCache = data || [];
+}
+function populateBrandSelect(selectId){
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = '<option value="">—</option><option value="__add__" style="color:var(--amber);">+ Add Brand</option>' +
+    brandsCache.map(b=>`<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
+}
+async function handleBrandSelectChange(selectId){
+  const sel = document.getElementById(selectId);
+  if(sel.value !== '__add__') return;
+  const name = prompt('New brand name:');
+  if(!name || !name.trim()){ sel.value=''; return; }
+  const { error } = await sb.rpc('mi_add_brand', { p_token: session.token, p_name: name.trim(), p_by: session.name });
+  if(error){ alert('Could not add brand: ' + error.message); sel.value=''; return; }
+  await fetchBrands();
+  populateBrandSelect(selectId);
+  sel.value = name.trim();
+}
+document.getElementById('itBrand').addEventListener('change', ()=>handleBrandSelectChange('itBrand'));
+document.getElementById('ncBrand').addEventListener('change', ()=>handleBrandSelectChange('ncBrand'));
+
 function populateItemModal(){
   document.getElementById('itName').value=''; document.getElementById('itCode').value='';
   document.getElementById('itPrice').value=''; document.getElementById('itBrand').value='';
   document.getElementById('itComplianceCat').innerHTML = COMPLIANCE_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
   document.getElementById('itProductCat').innerHTML = '<option value="">—</option>' + COMPLIANCE_CATEGORIES.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
   document.getElementById('itErr').classList.remove('show');
+  fetchBrands().then(()=>populateBrandSelect('itBrand'));
   updateItemDynamicFields();
 }
 document.getElementById('itComplianceCat').addEventListener('change', updateItemDynamicFields);
@@ -1252,6 +1424,182 @@ function renderItemsList(){
   if(q) rows = rows.filter(i=> (i.item_name||'').toLowerCase().includes(q) || (i.compliance_category||'').toLowerCase().includes(q));
   if(rows.length===0){ body.innerHTML = `<tr><td colspan="5"><div class="empty">No items yet. Click "Add New Item" to create one.</div></td></tr>`; return; }
   body.innerHTML = rows.map(i=>`<tr><td class="flavor-name">${escapeHtml(i.item_name)}</td><td>${escapeHtml(i.compliance_category)}</td><td>${escapeHtml(i.product_category||'—')}</td><td>${escapeHtml(i.unit_of_measure||'—')}</td><td>${escapeHtml(i.item_brand||'—')}</td></tr>`).join('');
+}
+
+// ---------- NON-CANNABIS ITEMS ----------
+function toggleNcSub(key){
+  const body = document.getElementById('ncsub-body-'+key);
+  const chev = document.getElementById('ncsub-chev-'+key);
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  chev.textContent = isOpen ? '▼' : '▲';
+}
+document.getElementById('btnAddNcItem').onclick = ()=>{
+  ['ncName','ncConversion','ncCategory','ncSku','ncParMin','ncParMax','ncStartingInventory','ncShelfLife'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ncUom').value=''; document.getElementById('ncPurchaseUom').value='';
+  document.getElementById('ncApplicable').checked = true;
+  ['ncExcludeDiscounts','ncNonInventory','ncSellable','ncAdditive'].forEach(id=>document.getElementById(id).checked=false);
+  ['par','starting','custom','shelf'].forEach(key=>{ document.getElementById('ncsub-body-'+key).style.display='none'; document.getElementById('ncsub-chev-'+key).textContent='▼'; });
+  document.getElementById('ncErr').classList.remove('show');
+  fetchBrands().then(()=>populateBrandSelect('ncBrand'));
+  openModal('modalCreateNcItem');
+};
+async function submitCreateNcItem(){
+  const errEl = document.getElementById('ncErr');
+  const name = document.getElementById('ncName').value.trim();
+  if(!name){ errEl.textContent='Enter an item name.'; errEl.classList.add('show'); return; }
+  const item = {
+    item_name: name, unit_of_measure: document.getElementById('ncUom').value, purchase_uom: document.getElementById('ncPurchaseUom').value,
+    conversion_factor: document.getElementById('ncConversion').value.trim(), brand: document.getElementById('ncBrand').value.trim(),
+    category: document.getElementById('ncCategory').value.trim(), sku_identifier: document.getElementById('ncSku').value.trim(),
+    exclude_from_discounts: document.getElementById('ncExcludeDiscounts').checked, non_inventory_item: document.getElementById('ncNonInventory').checked,
+    sellable: document.getElementById('ncSellable').checked, additive: document.getElementById('ncAdditive').checked,
+    par_min: document.getElementById('ncParMin').value.trim(), par_max: document.getElementById('ncParMax').value.trim(),
+    starting_inventory: document.getElementById('ncStartingInventory').value.trim(), shelf_life_days: document.getElementById('ncShelfLife').value.trim()
+  };
+  const { error } = await sb.rpc('mi_create_noncannabis_item', { p_token: session.token, p_item: item, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCreateNcItem');
+  await loadAndRenderNcItems();
+}
+let ncItemsData = [];
+async function loadAndRenderNcItems(){
+  const { data, error } = await sb.from('mi_noncannabis_items').select('*').order('created_at',{ascending:false});
+  if(error){ showError('Could not load non-cannabis items: ' + error.message); return; }
+  ncItemsData = data || [];
+  renderNcItemsList();
+}
+function renderNcItemsList(){
+  const q = (document.getElementById('ncItemSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('ncItemsBody');
+  let rows = ncItemsData;
+  if(q) rows = rows.filter(i=> (i.item_name||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="5"><div class="empty">No non-cannabis items yet. Click "Add New Item" to create one.</div></td></tr>`; return; }
+  body.innerHTML = rows.map(i=>`<tr><td class="flavor-name">${escapeHtml(i.item_name)}</td><td>${escapeHtml(i.brand||'--')}</td><td>${escapeHtml(i.category||'--')}</td><td>${escapeHtml(i.sku_identifier||'--')}</td><td>${escapeHtml(i.applicable_to||'--')}</td></tr>`).join('');
+}
+
+// ---------- PRODUCTION BATCHES ----------
+function genTag(){
+  const bytes = new Uint8Array(12);
+  (window.crypto || window.msCrypto).getRandomValues(bytes);
+  return [...bytes].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+function genBatchName(){
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
+  const rand = Math.random().toString(36).slice(2,8);
+  return `pb.${mm}.${dd}.${rand}`;
+}
+let pbBomRows = [];
+let pbPackageRows = [];
+function bomItemOptions(){
+  let html = '<option value="">Select an item</option>';
+  if(itemsData.length) html += '<optgroup label="Cannabis Items">' + itemsData.map(i=>`<option value="cannabis::${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</option>`).join('') + '</optgroup>';
+  if(ncItemsData.length) html += '<optgroup label="Non-cannabis Items">' + ncItemsData.map(i=>`<option value="noncannabis::${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</option>`).join('') + '</optgroup>';
+  return html;
+}
+function renderBomRows(){
+  const el = document.getElementById('pbBomRowsContainer');
+  el.innerHTML = pbBomRows.map((row,i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;padding-bottom:10px;${i<pbBomRows.length-1?'border-bottom:1px solid var(--line);':''}">
+      <div class="field" style="flex:2;margin-bottom:0;"><label>Item</label><select onchange="updateBomRow(${i},'itemRef',this.value)">${bomItemOptions()}</select></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Package Tag (Optional)</label><input value="${escapeHtml(row.packageTag)}" oninput="updateBomRow(${i},'packageTag',this.value)"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updateBomRow(${i},'quantity',this.value)"></div>
+      ${pbBomRows.length>1?`<button class="ghost small" onclick="removeBomRow(${i})">✕</button>`:''}
+    </div>`).join('');
+  const selects = el.querySelectorAll('select');
+  pbBomRows.forEach((row,i)=>{ if(selects[i]) selects[i].value = row.itemRef || ''; });
+}
+function updateBomRow(i, field, value){ pbBomRows[i][field] = value; }
+function addBomRow(){ pbBomRows.push({itemRef:'',packageTag:'',quantity:''}); renderBomRows(); }
+function removeBomRow(i){ pbBomRows.splice(i,1); renderBomRows(); }
+
+function renderPackageRows(){
+  const el = document.getElementById('pbPackageRowsContainer');
+  el.innerHTML = pbPackageRows.map((row,i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;padding-bottom:10px;${i<pbPackageRows.length-1?'border-bottom:1px solid var(--line);':''}">
+      <div class="field" style="flex:2;margin-bottom:0;"><label>Package Tag</label><input value="${escapeHtml(row.tag)}" oninput="updatePackageRow(${i},'tag',this.value)" style="font-family:monospace;font-size:12px;"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updatePackageRow(${i},'quantity',this.value)"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Location</label><input value="${escapeHtml(row.location)}" oninput="updatePackageRow(${i},'location',this.value)"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Date</label><input type="date" value="${row.date}" oninput="updatePackageRow(${i},'date',this.value)"></div>
+      ${pbPackageRows.length>1?`<button class="ghost small" onclick="removePackageRow(${i})">✕</button>`:''}
+    </div>`).join('');
+}
+function updatePackageRow(i, field, value){ pbPackageRows[i][field] = value; }
+function addPackageRow(){ pbPackageRows.push({tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}); renderPackageRows(); document.getElementById('pbNumPackages').value = pbPackageRows.length; }
+function removePackageRow(i){ pbPackageRows.splice(i,1); renderPackageRows(); document.getElementById('pbNumPackages').value = pbPackageRows.length; }
+function syncPackageRowCount(){
+  const n = Math.max(1, parseInt(document.getElementById('pbNumPackages').value,10)||1);
+  while(pbPackageRows.length < n) pbPackageRows.push({tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)});
+  while(pbPackageRows.length > n) pbPackageRows.pop();
+  renderPackageRows();
+}
+document.getElementById('btnCreateProductionBatch').onclick = async ()=>{
+  document.getElementById('pbName').value = '';
+  document.getElementById('pbNumPackages').value = '1';
+  document.getElementById('pbEstQty').value=''; document.getElementById('pbActQty').value='';
+  document.getElementById('pbStartingTag').value = genTag();
+  document.getElementById('pbComplianceBatch').checked=false; document.getElementById('pbRequiresTesting').checked=false;
+  document.getElementById('pbErr').classList.remove('show');
+  if(itemsData.length===0) await loadAndRenderItems();
+  if(ncItemsData.length===0) await loadAndRenderNcItems();
+  document.getElementById('pbItem').innerHTML = itemsData.map(i=>`<option value="${i.id}" data-name="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</option>`).join('') || '<option value="">No cannabis items yet — create one first</option>';
+  pbBomRows = [{itemRef:'',packageTag:'',quantity:''}];
+  pbPackageRows = [{tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}];
+  renderBomRows(); renderPackageRows();
+  openModal('modalCreateProductionBatch');
+};
+async function submitCreateProductionBatch(){
+  const errEl = document.getElementById('pbErr');
+  const itemSel = document.getElementById('pbItem');
+  const itemId = itemSel.value;
+  const itemName = itemSel.selectedOptions[0] ? itemSel.selectedOptions[0].dataset.name : '';
+  if(!itemId){ errEl.textContent='Choose an item being produced.'; errEl.classList.add('show'); return; }
+  const batch = {
+    batch_name: document.getElementById('pbName').value.trim() || genBatchName(),
+    item_id: itemId, item_name_snapshot: itemName,
+    number_of_packages: document.getElementById('pbNumPackages').value.trim(),
+    estimated_quantity: document.getElementById('pbEstQty').value.trim(),
+    actual_quantity: document.getElementById('pbActQty').value.trim(),
+    starting_tag: document.getElementById('pbStartingTag').value.trim() || genTag(),
+    compliance_batch: document.getElementById('pbComplianceBatch').checked,
+    requires_testing: document.getElementById('pbRequiresTesting').checked
+  };
+  const bom = pbBomRows.filter(r=>r.itemRef).map(r=>{
+    const [type, name] = r.itemRef.split('::');
+    return { item_type: type, item_name: name, package_tag: r.packageTag, quantity: r.quantity };
+  });
+  const packages = pbPackageRows.map(r=>({ package_tag: r.tag, quantity: r.quantity, location: r.location, package_date: r.date }));
+  const { error } = await sb.rpc('mi_create_production_batch', { p_token: session.token, p_batch: batch, p_bom: bom, p_packages: packages, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCreateProductionBatch');
+  await loadAndRenderProductionBatches();
+}
+let productionBatchesData = [];
+async function loadAndRenderProductionBatches(){
+  const [batchesR, packagesR] = await Promise.all([
+    sb.from('mi_production_batches').select('*').order('created_at',{ascending:false}),
+    sb.from('mi_production_batch_packages').select('batch_id')
+  ]);
+  if(batchesR.error){ showError('Could not load production batches: ' + batchesR.error.message); return; }
+  const counts = {};
+  (packagesR.data||[]).forEach(p=> counts[p.batch_id] = (counts[p.batch_id]||0)+1);
+  productionBatchesData = (batchesR.data||[]).map(b=>({...b, packagesCreated: counts[b.id]||0}));
+  renderProductionBatchesList();
+}
+function renderProductionBatchesList(){
+  const q = (document.getElementById('pbSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('pbBody');
+  let rows = productionBatchesData;
+  if(q) rows = rows.filter(b=> (b.batch_name||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="5"><div class="empty">No production batches yet.</div></td></tr>`; return; }
+  body.innerHTML = rows.map(b=>{
+    const item = itemsData.find(x=>x.id===b.item_id);
+    const uom = item ? item.unit_of_measure : '';
+    return `<tr><td style="font-family:monospace;">${escapeHtml(b.batch_name)}</td><td>${escapeHtml(b.item_name_snapshot||'—')}</td><td>${fmt(b.actual_quantity||b.estimated_quantity||0)} ${escapeHtml(uom||'')}</td><td>${escapeHtml(b.status)}</td><td>${fmt(b.packagesCreated)}</td></tr>`;
+  }).join('');
 }
 
 function renderCategoriesSection(){
