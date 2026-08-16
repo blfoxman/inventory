@@ -294,6 +294,25 @@
     <div class="tblwrap"><table id="lotsTable"><thead><tr><th>Name</th><th>Item</th><th>Allocated To</th><th>Location</th><th>Date Received</th><th>Expiration Date</th></tr></thead><tbody id="lotsBody"></tbody></table></div>
   </section>
 
+  <section class="block" id="reservedPackagesSection" style="display:none;">
+    <h2 class="head">Reserved Packages</h2>
+    <div class="hint" style="margin-bottom:12px;">Search packages, select rows, and reserve or release reservations in bulk.</div>
+    <div style="display:grid;grid-template-columns:260px 1fr;gap:16px;align-items:start;">
+      <div class="dash-card">
+        <h3>Reserve For</h3>
+        <div class="hint" style="margin-bottom:10px;">Choose the customer you want to reserve packages for.</div>
+        <div class="field"><label>Customer</label><select id="rpCustomer"></select></div>
+        <button class="primary" style="width:100%;margin-top:6px;" onclick="submitBulkReserve()">Reserve Selected</button>
+        <button class="ghost" style="width:100%;margin-top:8px;" onclick="submitBulkRelease()">Release Selected</button>
+        <div class="err" id="rpErr" style="margin-top:8px;"></div>
+      </div>
+      <div>
+        <div class="field" style="max-width:280px;margin-bottom:12px;"><input id="rpSearch" placeholder="Search for a tag..." oninput="renderReservedPackagesList()"></div>
+        <div class="tblwrap"><table id="rpTable"><thead><tr><th></th><th>Package Tag</th><th>SKU</th><th>Quantity</th><th>Reserved</th><th>UoM</th><th>Location</th></tr></thead><tbody id="rpBody"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
   <section class="block" id="fulfillmentSection" style="display:none;">
     <h2 class="head">Fulfillment</h2>
     <h3 style="font-size:12.5px;color:var(--dim);margin:14px 0 8px;">Pending Orders — need QC & Labeling</h3>
@@ -710,6 +729,7 @@
 
 
 
+
 <script>
 const SUPABASE_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
@@ -966,7 +986,7 @@ function applySectionVisibility(isBatch){
     if(currentSubSection==='cannabis_items') return ['itemsSection'];
     if(currentSubSection==='noncannabis_items') return ['ncItemsSection'];
     if(currentSubSection==='lots') return ['lotsSection'];
-    if(currentSubSection==='reserved_packages') return isBatch ? ['fulfillmentSection'] : [];
+    if(currentSubSection==='reserved_packages') return ['reservedPackagesSection'];
     return isBatch ? ['batchFlavorTotalsSection','batchListSection'] : ['sellSection']; // packages / batches
   }
   function inventoryButtons(){
@@ -994,7 +1014,7 @@ function applySectionVisibility(isBatch){
     reports: ['btnReports','btnPhysicalAudit','btnBatch'],
     settings: ['btnAddFlavor','btnAdmin']
   };
-  const allBlocks = ['compSection','stageSection','packSection','sellSection','batchListSection','batchFlavorTotalsSection','categoriesSection','itemsSection','ncItemsSection','lotsSection','productionBatchesSection','bomTemplatesSection','fulfillmentSection','distributionSection','logSection'];
+  const allBlocks = ['compSection','stageSection','packSection','sellSection','batchListSection','batchFlavorTotalsSection','categoriesSection','itemsSection','ncItemsSection','lotsSection','productionBatchesSection','bomTemplatesSection','reservedPackagesSection','fulfillmentSection','distributionSection','logSection'];
   const allButtons = ['btnReceive','btnAdvance','btnPack','btnLoss','btnAdvanceProduction','btnCreateProductionBatch','btnCreateBomTemplate','btnFulfillment','btnFulfill','btnReports','btnPhysicalAudit','btnBatch','btnAddFlavor','btnAddItem','btnAddNcItem','btnAddLot','btnAdmin'];
   allBlocks.forEach(id=> document.getElementById(id).style.display = 'none');
   allButtons.forEach(id=> document.getElementById(id).style.display = 'none');
@@ -1007,6 +1027,7 @@ function applySectionVisibility(isBatch){
   if(currentSection==='inventory' && currentSubSection==='cannabis_items') loadAndRenderItems();
   if(currentSection==='inventory' && currentSubSection==='noncannabis_items') loadAndRenderNcItems();
   if(currentSection==='inventory' && currentSubSection==='lots') loadAndRenderLots();
+  if(currentSection==='inventory' && currentSubSection==='reserved_packages') loadAndRenderReservedPackages();
   if(currentSection==='manufacturing'){ loadAndRenderProductionBatches(); loadAndRenderBomTemplates(); }
   document.getElementById('sharedStrip').style.display = currentSection==='warehouse' ? '' : 'none';
   document.getElementById('backlogPanel').style.display = (currentSection==='manufacturing' && !isBatch) ? '' : 'none';
@@ -1850,6 +1871,93 @@ function renderBomTemplatesList(){
   if(q) rows = rows.filter(t=> (t.template_name||'').toLowerCase().includes(q));
   if(rows.length===0){ body.innerHTML = `<tr><td colspan="3"><div class="empty">No templates yet. Click "Create Template" to add one.</div></td></tr>`; return; }
   body.innerHTML = rows.map(t=>`<tr><td class="flavor-name">${escapeHtml(t.template_name)}</td><td>${escapeHtml(t.output_item_name||'--')}</td><td>${escapeHtml(t.itemsUsed||'--')}</td></tr>`).join('');
+}
+
+// ---------- CUSTOMERS (managed dropdown, same pattern as Brands) ----------
+let customersCache = [];
+async function fetchCustomers(){
+  const { data, error } = await sb.from('mi_customers').select('*').order('name');
+  if(!error) customersCache = data || [];
+}
+function populateCustomerSelect(){
+  const sel = document.getElementById('rpCustomer');
+  sel.innerHTML = '<option value="">—</option><option value="__add__" style="color:var(--amber);">+ Add Customer</option>' +
+    customersCache.map(c=>`<option value="${c.id}" data-name="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join('');
+}
+document.getElementById('rpCustomer').addEventListener('change', async ()=>{
+  const sel = document.getElementById('rpCustomer');
+  if(sel.value !== '__add__') return;
+  const name = prompt('New customer name:');
+  if(!name || !name.trim()){ sel.value=''; return; }
+  const { error } = await sb.rpc('mi_add_customer', { p_token: session.token, p_name: name.trim(), p_by: session.name });
+  if(error){ alert('Could not add customer: ' + error.message); sel.value=''; return; }
+  await fetchCustomers();
+  populateCustomerSelect();
+  const match = customersCache.find(c=>c.name===name.trim());
+  if(match) sel.value = match.id;
+});
+
+// ---------- RESERVED PACKAGES ----------
+let reservedPackagesData = [];
+let rpSelected = new Set();
+async function loadAndRenderReservedPackages(){
+  await fetchCustomers();
+  populateCustomerSelect();
+  const [pkgR, batchesR, itemsR] = await Promise.all([
+    sb.from('mi_production_batch_packages').select('*').order('package_tag'),
+    sb.from('mi_production_batches').select('id,item_id,item_name_snapshot'),
+    sb.from('mi_items').select('id,internal_code,unit_of_measure')
+  ]);
+  if(pkgR.error){ showError('Could not load packages: ' + pkgR.error.message); return; }
+  const batchById = {}; (batchesR.data||[]).forEach(b=> batchById[b.id]=b);
+  const itemById = {}; (itemsR.data||[]).forEach(i=> itemById[i.id]=i);
+  reservedPackagesData = (pkgR.data||[]).map(p=>{
+    const batch = batchById[p.batch_id];
+    const item = batch ? itemById[batch.item_id] : null;
+    return {
+      ...p,
+      sku: item ? (item.internal_code || batch.item_name_snapshot || '—') : (batch ? batch.item_name_snapshot : '—'),
+      uom: item ? item.unit_of_measure : '—'
+    };
+  });
+  rpSelected.clear();
+  renderReservedPackagesList();
+}
+function renderReservedPackagesList(){
+  const q = (document.getElementById('rpSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('rpBody');
+  let rows = reservedPackagesData;
+  if(q) rows = rows.filter(p=> (p.package_tag||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="7"><div class="empty">No packages found.</div></td></tr>`; return; }
+  body.innerHTML = rows.map(p=>`<tr>
+    <td><input type="checkbox" ${rpSelected.has(p.package_tag)?'checked':''} onchange="toggleRpSelect('${p.package_tag}',this.checked)"></td>
+    <td style="font-family:monospace;font-size:12px;">${escapeHtml(p.package_tag)}</td>
+    <td>${escapeHtml(p.sku||'—')}</td>
+    <td>${fmt(p.quantity)}</td>
+    <td class="${!p.reserved_qty?'qty-zero':''}">${fmt(p.reserved_qty)}</td>
+    <td>${escapeHtml(p.uom||'—')}</td>
+    <td>${escapeHtml(p.location||'—')}</td>
+  </tr>`).join('');
+}
+function toggleRpSelect(tag, checked){ if(checked) rpSelected.add(tag); else rpSelected.delete(tag); }
+async function submitBulkReserve(){
+  const errEl = document.getElementById('rpErr');
+  if(rpSelected.size===0){ errEl.textContent='Select at least one package.'; errEl.classList.add('show'); return; }
+  const custSel = document.getElementById('rpCustomer');
+  if(!custSel.value || custSel.value==='__add__'){ errEl.textContent='Choose a customer.'; errEl.classList.add('show'); return; }
+  const customerName = custSel.selectedOptions[0].dataset.name;
+  const { error } = await sb.rpc('mi_bulk_reserve_packages', { p_token: session.token, p_package_tags: [...rpSelected], p_customer_id: custSel.value, p_customer_name: customerName, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  await loadAndRenderReservedPackages();
+}
+async function submitBulkRelease(){
+  const errEl = document.getElementById('rpErr');
+  if(rpSelected.size===0){ errEl.textContent='Select at least one package.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_bulk_release_packages', { p_token: session.token, p_package_tags: [...rpSelected], p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  await loadAndRenderReservedPackages();
 }
 
 function renderCategoriesSection(){
