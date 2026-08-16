@@ -160,17 +160,68 @@ let currentSection = 'tasks';
 const SIDEBAR_SECTIONS = [
   {id:'tasks', label:'Tasks', icon:'✓'},
   {id:'activity_ledger', label:'Activity Ledger', icon:'📈', soon:true},
-  {id:'plants', label:'Plants', icon:'🌱', soon:true},
-  {id:'manufacturing', label:'Manufacturing', icon:'🏭', soon:true},
-  {id:'inventory', label:'Inventory', icon:'📦', soon:true},
-  {id:'orders', label:'Orders', icon:'🏷️', soon:true},
-  {id:'transfers', label:'Transfers', icon:'🚚', soon:true},
+  {id:'plants', label:'Plants', icon:'🌱', children:[
+    {id:'plant_batches', label:'Plant Batches'},
+    {id:'vegetation', label:'Vegetation'},
+    {id:'flowering', label:'Flowering'},
+    {id:'harvests', label:'Harvests'},
+    {id:'mothers', label:'Mothers'},
+    {id:'plants_waste_log', label:'Waste Log'},
+    {id:'rooms', label:'Rooms'},
+    {id:'totes', label:'Totes'},
+    {id:'crops', label:'Crops'}
+  ]},
+  {id:'manufacturing', label:'Manufacturing', icon:'🏭', children:[
+    {id:'production_batches', label:'Production Batches'}
+  ]},
+  {id:'inventory', label:'Inventory', icon:'📦', children:[
+    {id:'packages', label:'Packages'},
+    {id:'cannabis_items', label:'Cannabis Items'},
+    {id:'noncannabis_items', label:'Non-cannabis Items'},
+    {id:'inv_batches', label:'Batches'},
+    {id:'inv_categories', label:'Categories'},
+    {id:'inv_lots', label:'Lots'},
+    {id:'reserved_packages', label:'Reserved Packages'},
+    {id:'forecasting', label:'Forecasting'}
+  ]},
+  {id:'orders', label:'Orders', icon:'🏷️', children:[
+    {id:'sales', label:'Sales'},
+    {id:'fulfillments', label:'Fulfillments'},
+    {id:'purchases', label:'Purchases'},
+    {id:'receipts', label:'Receipts'},
+    {id:'transfer_order', label:'Transfer Order'},
+    {id:'buyer_menus', label:'Buyer Menus'},
+    {id:'proposals', label:'Proposals'}
+  ]},
+  {id:'transfers', label:'Transfers', icon:'🚚', children:[
+    {id:'incoming', label:'Incoming'},
+    {id:'outgoing', label:'Outgoing'},
+    {id:'manifest_template', label:'Manifest Template'}
+  ]},
   {id:'reports', label:'Reports', icon:'📄', soon:true},
-  {id:'accounts_payable', label:'Accounts Payable', icon:'🤝', soon:true},
-  {id:'accounts_receivable', label:'Accounts Receivable', icon:'💵', soon:true},
+  {id:'accounts_payable', label:'Accounts Payable', icon:'🤝', children:[
+    {id:'bills', label:'Bills'},
+    {id:'ap_payments', label:'Payments'},
+    {id:'vendors', label:'Vendors'}
+  ]},
+  {id:'accounts_receivable', label:'Accounts Receivable', icon:'💵', children:[
+    {id:'invoices', label:'Invoices'},
+    {id:'ar_payments', label:'Payments'},
+    {id:'credit_memos', label:'Credit Memos'},
+    {id:'debit_memos', label:'Debit Memos'},
+    {id:'customers', label:'Customers'}
+  ]},
   {id:'settings', label:'Settings', icon:'⚙️', soon:true},
-  {id:'illumify_hub', label:'Illumify Hub', icon:'🔗', soon:true},
-  {id:'general_ledger', label:'General Ledger', icon:'📖', soon:true}
+  {id:'illumify_hub', label:'Illumify Hub', icon:'🔗', children:[
+    {id:'hub_cannabis_items', label:'Cannabis Items'},
+    {id:'hub_sales', label:'Sales'},
+    {id:'hub_fulfillments', label:'Fulfillments'},
+    {id:'hub_invoices', label:'Invoices'},
+    {id:'hub_packages', label:'Packages'}
+  ]},
+  {id:'general_ledger', label:'General Ledger', icon:'📖', children:[
+    {id:'chart_of_accounts', label:'Chart Of Accounts'}
+  ]}
 ];
 
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -206,12 +257,25 @@ function enterApp(){
   switchSection('tasks');
 }
 
+let expandedSidebar = {};
 function renderSidebar(){
   const el = document.getElementById('sidebarItems');
   el.innerHTML = SIDEBAR_SECTIONS.map(s=>{
-    if(s.soon) return `<div class="sb-item soon"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span class="sb-soon-tag">Not built</span></div>`;
-    return `<div class="sb-item ${currentSection===s.id?'active':''}" onclick="switchSection('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}</div>`;
+    if(!s.children){
+      if(s.soon) return `<div class="sb-item soon"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span class="sb-soon-tag">Not built</span></div>`;
+      return `<div class="sb-item ${currentSection===s.id?'active':''}" onclick="switchSection('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}</div>`;
+    }
+    const isOpen = !!expandedSidebar[s.id];
+    let block = `<div class="sb-item ${currentSection===s.id?'active':''}" onclick="toggleSidebarGroup('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span style="margin-left:auto;font-size:10px;">${isOpen?'▲':'▼'}</span></div>`;
+    if(isOpen){
+      block += s.children.map(c=>`<div class="sb-item soon" style="padding-left:36px;">${escapeHtml(c.label)}<span class="sb-soon-tag">Not built</span></div>`).join('');
+    }
+    return block;
   }).join('');
+}
+function toggleSidebarGroup(id){
+  expandedSidebar[id] = !expandedSidebar[id];
+  renderSidebar();
 }
 function switchSection(id){
   currentSection = id;
