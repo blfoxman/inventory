@@ -128,9 +128,88 @@
         </div>
         <div id="tasksList"></div>
       </div>
+
+      <!-- ---------- PRODUCTION BATCHES ---------- -->
+      <div id="productionBatchesView" style="display:none;">
+        <div class="hint" style="margin-bottom:12px;">Keep track of the creation of finished goods from raw materials at the facility</div>
+        <div class="toolbar-row">
+          <input id="pbSearch" placeholder="Search for a batch name" oninput="renderProductionBatchesList()">
+          <div style="flex:1;"></div>
+          <button class="primary" id="btnCreateProductionBatch">Create Production Batch</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;">
+          <thead><tr style="text-align:left;font-size:11px;text-transform:uppercase;color:var(--dim);background:var(--panel2);">
+            <th style="padding:10px 12px;">Production Batch Name</th><th style="padding:10px 12px;">Item</th><th style="padding:10px 12px;">Amount Created</th><th style="padding:10px 12px;">Status</th><th style="padding:10px 12px;">Packages Created</th>
+          </tr></thead>
+          <tbody id="pbBody" style="font-size:13px;"></tbody>
+        </table>
+      </div>
+
+      <!-- ---------- CANNABIS ITEMS ---------- -->
+      <div id="itemsView" style="display:none;">
+        <div class="hint" style="margin-bottom:12px;">Manage the cannabis items at your facility</div>
+        <div class="toolbar-row">
+          <input id="itemSearch" placeholder="Search by name or category" oninput="renderItemsList()">
+          <div style="flex:1;"></div>
+          <button class="primary" id="btnAddItem">Add New Item</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;">
+          <thead><tr style="text-align:left;font-size:11px;text-transform:uppercase;color:var(--dim);background:var(--panel2);">
+            <th style="padding:10px 12px;">Item Name</th><th style="padding:10px 12px;">Compliance Category</th><th style="padding:10px 12px;">Unit of Measure</th>
+          </tr></thead>
+          <tbody id="itemsBody" style="font-size:13px;"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
+
+<div class="overlay" id="modalCreateItem"><div class="modal">
+  <h3>Create an Item</h3>
+  <div class="field"><label>Item Name</label><input id="itName"></div>
+  <div class="field"><label>Compliance Category</label><select id="itComplianceCat">
+    <option>Vape Cartridge</option><option>Raw Preroll</option><option>Infused Preroll</option>
+    <option>Concentrate</option><option>Infused Edible</option><option>Bud/Flower</option>
+    <option>Infused Non-Edible</option><option>Shake/Trim</option>
+  </select></div>
+  <div class="field"><label>Unit of Measure</label><select id="itUom"><option>Each</option><option>Grams</option><option>Kilograms</option><option>Milligrams</option><option>Ounces</option></select></div>
+  <div class="err" id="itErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateItem')">Cancel</button><button class="primary" onclick="submitCreateItem()">Create Item</button></div>
+</div></div>
+
+<div class="overlay" id="modalCreateProductionBatch"><div class="modal" style="max-width:680px;">
+  <h3>Create Production Batch</h3>
+  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Overview</div>
+    <div class="field"><label>Production Batch Name (Optional)</label><input id="pbName" placeholder="Auto-generated if left blank"></div>
+    <div class="field"><label>Item Being Produced</label><select id="pbItem"></select></div>
+    <div style="display:flex;gap:10px;">
+      <div class="field" style="flex:1;"><label>Number of Packages</label><input id="pbNumPackages" type="number" value="1" min="1" onchange="syncPackageRowCount()"></div>
+      <div class="field" style="flex:1;"><label>Estimated Quantity</label><input id="pbEstQty" type="number"></div>
+      <div class="field" style="flex:1;"><label>Actual Quantity</label><input id="pbActQty" type="number"></div>
+    </div>
+    <div class="field"><label>Starting Tag</label><input id="pbStartingTag" placeholder="Auto-generated"></div>
+    <div style="display:flex;gap:16px;font-size:13px;">
+      <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="pbComplianceBatch"> Compliance Batch</label>
+      <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="pbRequiresTesting"> Requires Testing</label>
+    </div>
+  </div>
+
+  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Bill of Materials</div>
+    <div id="pbBomRowsContainer"></div>
+    <button class="ghost small" onclick="addBomRow()">+ Add New Item/Category</button>
+  </div>
+
+  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
+    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Package(s) Created</div>
+    <div id="pbPackageRowsContainer"></div>
+    <button class="ghost small" onclick="addPackageRow()">+ Create Another Package</button>
+  </div>
+
+  <div class="err" id="pbErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateProductionBatch')">Cancel</button><button class="primary" onclick="submitCreateProductionBatch()">Create Production Batch</button></div>
+</div></div>
 
 <div class="overlay" id="modalCreateTask"><div class="modal">
   <h3>Create Task</h3>
@@ -172,11 +251,11 @@ const SIDEBAR_SECTIONS = [
     {id:'crops', label:'Crops'}
   ]},
   {id:'manufacturing', label:'Manufacturing', icon:'🏭', children:[
-    {id:'production_batches', label:'Production Batches'}
+    {id:'production_batches', label:'Production Batches', built:true}
   ]},
   {id:'inventory', label:'Inventory', icon:'📦', children:[
     {id:'packages', label:'Packages'},
-    {id:'cannabis_items', label:'Cannabis Items'},
+    {id:'cannabis_items', label:'Cannabis Items', built:true},
     {id:'noncannabis_items', label:'Non-cannabis Items'},
     {id:'inv_batches', label:'Batches'},
     {id:'inv_categories', label:'Categories'},
@@ -211,7 +290,42 @@ const SIDEBAR_SECTIONS = [
     {id:'debit_memos', label:'Debit Memos'},
     {id:'customers', label:'Customers'}
   ]},
-  {id:'settings', label:'Settings', icon:'⚙️', soon:true},
+  {id:'settings', label:'Settings', icon:'⚙️', children:[
+    {id:'aging_buckets', label:'Aging Buckets'},
+    {id:'cost_items', label:'Cost Items'},
+    {id:'customer_matching', label:'Customer Matching'},
+    {id:'customer_segments', label:'Customer Segments'},
+    {id:'default_accounts', label:'Default Accounts'},
+    {id:'expense_templates', label:'Expense Templates'},
+    {id:'payment_terms', label:'Payment Terms & Methods'},
+    {id:'pricing_templates', label:'Pricing Templates'},
+    {id:'unit_costs', label:'Unit Costs'},
+    {id:'vendor_matching', label:'Vendor Matching'},
+    {id:'app_action_templates', label:'Application Action Templates'},
+    {id:'bom_templates_settings', label:'Bill of Materials Templates'},
+    {id:'settings_brands', label:'Brands'},
+    {id:'customers_vendors', label:'Customers & Vendors'},
+    {id:'drivers', label:'Drivers'},
+    {id:'settings_locations', label:'Locations'},
+    {id:'strains', label:'Strains'},
+    {id:'vehicles', label:'Vehicles'},
+    {id:'communication_preferences', label:'Communication Preferences'},
+    {id:'company_details', label:'Company Details'},
+    {id:'compartment_configuration', label:'Compartment Configuration'},
+    {id:'crm_custom_fields', label:'CRM Custom Fields'},
+    {id:'custom_field_manager', label:'Custom Field Manager'},
+    {id:'dashboards', label:'Dashboards'},
+    {id:'erp_steps', label:'ERP Steps'},
+    {id:'integrations', label:'Integrations'},
+    {id:'labels', label:'Labels'},
+    {id:'life_cycle_configuration', label:'Life Cycle Configuration'},
+    {id:'personas', label:'Personas'},
+    {id:'recipe_manager', label:'Recipe Manager'},
+    {id:'roles_permissions', label:'Roles & Permissions'},
+    {id:'sop_manager', label:'SOP Manager'},
+    {id:'task_templates', label:'Task Templates'},
+    {id:'users', label:'Users'}
+  ]},
   {id:'illumify_hub', label:'Illumify Hub', icon:'🔗', children:[
     {id:'hub_cannabis_items', label:'Cannabis Items'},
     {id:'hub_sales', label:'Sales'},
@@ -265,10 +379,14 @@ function renderSidebar(){
       if(s.soon) return `<div class="sb-item soon"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span class="sb-soon-tag">Not built</span></div>`;
       return `<div class="sb-item ${currentSection===s.id?'active':''}" onclick="switchSection('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}</div>`;
     }
-    const isOpen = !!expandedSidebar[s.id];
-    let block = `<div class="sb-item ${currentSection===s.id?'active':''}" onclick="toggleSidebarGroup('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span style="margin-left:auto;font-size:10px;">${isOpen?'▲':'▼'}</span></div>`;
+    const hasActiveChild = s.children.some(c=>c.id===currentSection);
+    const isOpen = !!expandedSidebar[s.id] || hasActiveChild;
+    let block = `<div class="sb-item ${hasActiveChild?'active':''}" onclick="toggleSidebarGroup('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span style="margin-left:auto;font-size:10px;">${isOpen?'▲':'▼'}</span></div>`;
     if(isOpen){
-      block += s.children.map(c=>`<div class="sb-item soon" style="padding-left:36px;">${escapeHtml(c.label)}<span class="sb-soon-tag">Not built</span></div>`).join('');
+      block += s.children.map(c=>{
+        if(!c.built) return `<div class="sb-item soon" style="padding-left:36px;">${escapeHtml(c.label)}<span class="sb-soon-tag">Not built</span></div>`;
+        return `<div class="sb-item ${currentSection===c.id?'active':''}" style="padding-left:36px;" onclick="switchSection('${c.id}')">${escapeHtml(c.label)}</div>`;
+      }).join('');
     }
     return block;
   }).join('');
@@ -280,10 +398,18 @@ function toggleSidebarGroup(id){
 function switchSection(id){
   currentSection = id;
   renderSidebar();
-  const section = SIDEBAR_SECTIONS.find(s=>s.id===id);
-  document.getElementById('pageTitle').textContent = section ? section.label : '';
+  let label = id;
+  for(const s of SIDEBAR_SECTIONS){
+    if(s.id===id){ label = s.label; break; }
+    if(s.children){ const c = s.children.find(x=>x.id===id); if(c){ label = c.label; break; } }
+  }
+  document.getElementById('pageTitle').textContent = label;
   document.getElementById('tasksView').style.display = id==='tasks' ? 'block' : 'none';
+  document.getElementById('productionBatchesView').style.display = id==='production_batches' ? 'block' : 'none';
+  document.getElementById('itemsView').style.display = id==='cannabis_items' ? 'block' : 'none';
   if(id==='tasks') loadAndRenderTasks();
+  if(id==='production_batches') loadAndRenderProductionBatches();
+  if(id==='cannabis_items') loadAndRenderItems();
 }
 
 // ---------- TASKS ----------
@@ -356,6 +482,154 @@ async function markTaskComplete(taskId){
   const { error } = await sb.rpc('mi_update_task_status', { p_token: session.token, p_task_id: taskId, p_status: 'Completed', p_by: session.name });
   if(error){ alert('Could not update task: ' + error.message); return; }
   await loadAndRenderTasks();
+}
+
+// ---------- CANNABIS ITEMS ----------
+let itemsData = [];
+document.getElementById('btnAddItem').onclick = ()=>{
+  document.getElementById('itName').value='';
+  document.getElementById('itErr').classList.remove('show');
+  openModal('modalCreateItem');
+};
+async function submitCreateItem(){
+  const errEl = document.getElementById('itErr');
+  const name = document.getElementById('itName').value.trim();
+  if(!name){ errEl.textContent='Enter an item name.'; errEl.classList.add('show'); return; }
+  const item = { item_name: name, unit_of_measure: document.getElementById('itUom').value, compliance_category: document.getElementById('itComplianceCat').value };
+  const { error } = await sb.rpc('mi_create_item', { p_token: session.token, p_item: item, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCreateItem');
+  await loadAndRenderItems();
+}
+async function loadAndRenderItems(){
+  const { data, error } = await sb.from('mi_items').select('*').order('created_at',{ascending:false});
+  if(error){ console.error(error); return; }
+  itemsData = data || [];
+  renderItemsList();
+}
+function renderItemsList(){
+  const q = (document.getElementById('itemSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('itemsBody');
+  let rows = itemsData;
+  if(q) rows = rows.filter(i=> (i.item_name||'').toLowerCase().includes(q) || (i.compliance_category||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--dim);">No items yet. Click "Add New Item" to create one.</td></tr>`; return; }
+  body.innerHTML = rows.map(i=>`<tr style="border-top:1px solid var(--line);"><td style="padding:9px 12px;font-weight:600;">${escapeHtml(i.item_name)}</td><td style="padding:9px 12px;">${escapeHtml(i.compliance_category||'—')}</td><td style="padding:9px 12px;">${escapeHtml(i.unit_of_measure||'—')}</td></tr>`).join('');
+}
+
+// ---------- PRODUCTION BATCHES ----------
+function genTag(){
+  const bytes = new Uint8Array(12);
+  (window.crypto || window.msCrypto).getRandomValues(bytes);
+  return [...bytes].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+function genBatchName(){
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
+  const rand = Math.random().toString(36).slice(2,8);
+  return `pb.${mm}.${dd}.${rand}`;
+}
+let pbBomRows = [];
+let pbPackageRows = [];
+function renderBomRows(){
+  const el = document.getElementById('pbBomRowsContainer');
+  el.innerHTML = pbBomRows.map((row,i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;padding-bottom:10px;${i<pbBomRows.length-1?'border-bottom:1px solid var(--line);':''}">
+      <div class="field" style="flex:2;margin-bottom:0;"><label>Item</label><select onchange="updateBomRow(${i},'itemName',this.value)">
+        <option value="">Select an item</option>
+        ${itemsData.map(it=>`<option value="${escapeHtml(it.item_name)}">${escapeHtml(it.item_name)}</option>`).join('')}
+      </select></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Package Tag (Optional)</label><input value="${escapeHtml(row.packageTag)}" oninput="updateBomRow(${i},'packageTag',this.value)"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updateBomRow(${i},'quantity',this.value)"></div>
+      ${pbBomRows.length>1?`<button class="ghost small" onclick="removeBomRow(${i})">✕</button>`:''}
+    </div>`).join('');
+  const selects = el.querySelectorAll('select');
+  pbBomRows.forEach((row,i)=>{ if(selects[i]) selects[i].value = row.itemName || ''; });
+}
+function updateBomRow(i, field, value){ pbBomRows[i][field] = value; }
+function addBomRow(){ pbBomRows.push({itemName:'',packageTag:'',quantity:''}); renderBomRows(); }
+function removeBomRow(i){ pbBomRows.splice(i,1); renderBomRows(); }
+function renderPackageRows(){
+  const el = document.getElementById('pbPackageRowsContainer');
+  el.innerHTML = pbPackageRows.map((row,i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;padding-bottom:10px;${i<pbPackageRows.length-1?'border-bottom:1px solid var(--line);':''}">
+      <div class="field" style="flex:2;margin-bottom:0;"><label>Package Tag</label><input value="${escapeHtml(row.tag)}" oninput="updatePackageRow(${i},'tag',this.value)" style="font-family:monospace;font-size:12px;"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updatePackageRow(${i},'quantity',this.value)"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Location</label><input value="${escapeHtml(row.location)}" oninput="updatePackageRow(${i},'location',this.value)"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Date</label><input type="date" value="${row.date}" oninput="updatePackageRow(${i},'date',this.value)"></div>
+      ${pbPackageRows.length>1?`<button class="ghost small" onclick="removePackageRow(${i})">✕</button>`:''}
+    </div>`).join('');
+}
+function updatePackageRow(i, field, value){ pbPackageRows[i][field] = value; }
+function addPackageRow(){ pbPackageRows.push({tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}); renderPackageRows(); document.getElementById('pbNumPackages').value = pbPackageRows.length; }
+function removePackageRow(i){ pbPackageRows.splice(i,1); renderPackageRows(); document.getElementById('pbNumPackages').value = pbPackageRows.length; }
+function syncPackageRowCount(){
+  const n = Math.max(1, parseInt(document.getElementById('pbNumPackages').value,10)||1);
+  while(pbPackageRows.length < n) pbPackageRows.push({tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)});
+  while(pbPackageRows.length > n) pbPackageRows.pop();
+  renderPackageRows();
+}
+document.getElementById('btnCreateProductionBatch').onclick = async ()=>{
+  document.getElementById('pbName').value = '';
+  document.getElementById('pbNumPackages').value = '1';
+  document.getElementById('pbEstQty').value=''; document.getElementById('pbActQty').value='';
+  document.getElementById('pbStartingTag').value = genTag();
+  document.getElementById('pbComplianceBatch').checked=false; document.getElementById('pbRequiresTesting').checked=false;
+  document.getElementById('pbErr').classList.remove('show');
+  if(itemsData.length===0) await loadAndRenderItems();
+  document.getElementById('pbItem').innerHTML = itemsData.map(i=>`<option value="${i.id}" data-name="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</option>`).join('') || '<option value="">No items yet — create one first</option>';
+  pbBomRows = [{itemName:'',packageTag:'',quantity:''}];
+  pbPackageRows = [{tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}];
+  renderBomRows(); renderPackageRows();
+  openModal('modalCreateProductionBatch');
+};
+async function submitCreateProductionBatch(){
+  const errEl = document.getElementById('pbErr');
+  const itemSel = document.getElementById('pbItem');
+  const itemId = itemSel.value;
+  const itemName = itemSel.selectedOptions[0] ? itemSel.selectedOptions[0].dataset.name : '';
+  if(!itemId){ errEl.textContent='Choose an item being produced.'; errEl.classList.add('show'); return; }
+  const batch = {
+    batch_name: document.getElementById('pbName').value.trim() || genBatchName(),
+    item_id: itemId, item_name_snapshot: itemName,
+    number_of_packages: document.getElementById('pbNumPackages').value.trim(),
+    estimated_quantity: document.getElementById('pbEstQty').value.trim(),
+    actual_quantity: document.getElementById('pbActQty').value.trim(),
+    starting_tag: document.getElementById('pbStartingTag').value.trim() || genTag(),
+    compliance_batch: document.getElementById('pbComplianceBatch').checked,
+    requires_testing: document.getElementById('pbRequiresTesting').checked
+  };
+  const bom = pbBomRows.filter(r=>r.itemName).map(r=>({ item_name: r.itemName, package_tag: r.packageTag, quantity: r.quantity }));
+  const packages = pbPackageRows.map(r=>({ package_tag: r.tag, quantity: r.quantity, location: r.location, package_date: r.date }));
+  const { error } = await sb.rpc('mi_create_production_batch', { p_token: session.token, p_batch: batch, p_bom: bom, p_packages: packages, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCreateProductionBatch');
+  await loadAndRenderProductionBatches();
+}
+let productionBatchesData = [];
+async function loadAndRenderProductionBatches(){
+  const [batchesR, packagesR] = await Promise.all([
+    sb.from('mi_production_batches').select('*').order('created_at',{ascending:false}),
+    sb.from('mi_production_batch_packages').select('batch_id')
+  ]);
+  if(batchesR.error){ console.error(batchesR.error); return; }
+  const counts = {};
+  (packagesR.data||[]).forEach(p=> counts[p.batch_id] = (counts[p.batch_id]||0)+1);
+  productionBatchesData = (batchesR.data||[]).map(b=>({...b, packagesCreated: counts[b.id]||0}));
+  renderProductionBatchesList();
+}
+function renderProductionBatchesList(){
+  const q = (document.getElementById('pbSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('pbBody');
+  let rows = productionBatchesData;
+  if(q) rows = rows.filter(b=> (b.batch_name||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--dim);">No production batches yet.</td></tr>`; return; }
+  body.innerHTML = rows.map(b=>{
+    const item = itemsData.find(x=>x.id===b.item_id);
+    const uom = item ? item.unit_of_measure : '';
+    return `<tr style="border-top:1px solid var(--line);"><td style="padding:9px 12px;font-family:monospace;">${escapeHtml(b.batch_name)}</td><td style="padding:9px 12px;">${escapeHtml(b.item_name_snapshot||'—')}</td><td style="padding:9px 12px;">${b.actual_quantity||b.estimated_quantity||0} ${escapeHtml(uom||'')}</td><td style="padding:9px 12px;">${escapeHtml(b.status)}</td><td style="padding:9px 12px;">${b.packagesCreated}</td></tr>`;
+  }).join('');
 }
 
 loadSession();
