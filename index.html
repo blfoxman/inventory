@@ -237,7 +237,7 @@
 
   <section class="block" id="batchListSection" style="display:none;">
     <h2 class="head">Batches</h2>
-    <div class="tblwrap"><table id="batchListTable"><thead><tr><th>Batch Code</th><th>Flavor</th><th>Fill</th><th>Package</th><th>Inventory</th><th>Reserved</th><th>Shipped</th><th>Test Loss</th><th>Waste Loss</th><th>Created</th></tr></thead><tbody id="batchListBody"></tbody></table></div>
+    <div class="tblwrap"><table id="batchListTable"><thead><tr><th>Batch Code</th><th>Flavor</th><th>Available</th><th>Allocated</th><th>Reserved</th><th>Custody</th><th>Fill</th><th>Package</th><th>Shipped</th><th>Test Loss</th><th>Waste Loss</th><th>Created</th><th></th></tr></thead><tbody id="batchListBody"></tbody></table></div>
   </section>
 
   <section class="block" id="categoriesSection" style="display:none;">
@@ -601,6 +601,15 @@
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateNcItem')">Cancel</button><button class="primary" onclick="submitCreateNcItem()">Create Item</button></div>
 </div></div>
 
+<div class="overlay" id="modalEditAllocatedCustody"><div class="modal">
+  <h3>Edit Allocated / Custody</h3>
+  <div class="hint" style="margin-bottom:10px;" id="eacBatchLabel"></div>
+  <div class="field"><label>Allocated</label><input id="eacAllocated" type="number"></div>
+  <div class="field"><label>Custody</label><input id="eacCustody" type="number"></div>
+  <div class="err" id="eacErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalEditAllocatedCustody')">Cancel</button><button class="primary" onclick="submitEditAllocatedCustody()">Save</button></div>
+</div></div>
+
 <div class="overlay" id="modalAddCategory"><div class="modal">
   <h3>Add Category</h3>
   <div class="hint" style="margin-bottom:10px;" id="catAddTypeLabel"></div>
@@ -686,6 +695,7 @@
   <div class="err" id="pbErr"></div>
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateProductionBatch')">Cancel</button><button class="primary" onclick="submitCreateProductionBatch()">Create Production Batch</button></div>
 </div></div>
+
 
 
 
@@ -1028,21 +1038,46 @@ function renderBatchTables(){
     totals.map(t=>`<tr><td class="flavor-name">${escapeHtml(t.name)}</td><td>${fmt(t.fill)}</td><td>${fmt(t.package)}</td><td>${fmt(t.inventory)}</td><td>${fmt(t.reserved)}</td><td>${fmt(t.shipped)}</td><td>${fmt(t.testLoss)}</td><td>${fmt(t.wasteLoss)}</td></tr>`).join('');
 
   const listBody = document.getElementById('batchListBody');
-  listBody.innerHTML = batchLineData.batches.length===0 ? `<tr><td colspan="10"><div class="empty">No batches yet — use "Fill New Batch" to create one.</div></td></tr>` :
+  listBody.innerHTML = batchLineData.batches.length===0 ? `<tr><td colspan="13"><div class="empty">No batches yet — use "Fill New Batch" to create one.</div></td></tr>` :
     batchLineData.batches.map(b=>`<tr>
       <td style="font-family:monospace;">${escapeHtml(b.batch_code)}</td>
       <td>${escapeHtml(b.flavorName)}</td>
+      <td class="${b.inventory_qty===0?'qty-zero':''}">${fmt(b.inventory_qty)}</td>
+      <td class="${!b.allocated_qty?'qty-zero':''}">${fmt(b.allocated_qty)}</td>
+      <td class="${b.reserved_qty===0?'qty-zero':''}">${fmt(b.reserved_qty)}</td>
+      <td class="${!b.custody_qty?'qty-zero':''}">${fmt(b.custody_qty)}</td>
       <td class="${b.fill_qty===0?'qty-zero':''}">${fmt(b.fill_qty)}</td>
       <td class="${b.package_qty===0?'qty-zero':''}">${fmt(b.package_qty)}</td>
-      <td class="${b.inventory_qty===0?'qty-zero':''}">${fmt(b.inventory_qty)}</td>
-      <td class="${b.reserved_qty===0?'qty-zero':''}">${fmt(b.reserved_qty)}</td>
       <td class="${b.shipped_qty===0?'qty-zero':''}">${fmt(b.shipped_qty)}</td>
       <td class="${b.test_loss_total===0?'qty-zero':''}">${fmt(b.test_loss_total)}</td>
       <td class="${b.waste_loss_total===0?'qty-zero':''}">${fmt(b.waste_loss_total)}</td>
       <td>${new Date(b.created_at).toLocaleDateString()}</td>
+      <td>${session.role==='admin'?`<button class="ghost small" onclick="openEditAllocatedCustody('${b.batch_code}')">Edit</button>`:''}</td>
     </tr>`).join('');
 }
 function batchLabel(b){ return `${b.batch_code} — ${b.flavorName}`; }
+let eacCurrentBatch = null;
+function openEditAllocatedCustody(batchCode){
+  const b = batchLineData.batches.find(x=>x.batch_code===batchCode);
+  if(!b) return;
+  eacCurrentBatch = batchCode;
+  document.getElementById('eacBatchLabel').textContent = batchLabel(b);
+  document.getElementById('eacAllocated').value = b.allocated_qty || 0;
+  document.getElementById('eacCustody').value = b.custody_qty || 0;
+  document.getElementById('eacErr').classList.remove('show');
+  openModal('modalEditAllocatedCustody');
+}
+async function submitEditAllocatedCustody(){
+  const errEl = document.getElementById('eacErr');
+  const allocated = parseFloat(document.getElementById('eacAllocated').value) || 0;
+  const custody = parseFloat(document.getElementById('eacCustody').value) || 0;
+  const { error } = await sb.rpc('mi_update_batch_allocated_custody', { p_token: session.token, p_batch_code: eacCurrentBatch, p_allocated: allocated, p_custody: custody, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalEditAllocatedCustody');
+  await fetchBatchData(currentLine);
+  renderBatchTables();
+}
 
 // ---------- ADVANCE PRODUCTION (Fill -> Test -> Package -> Waste -> Release to Inventory), consolidated ----------
 document.getElementById('btnAdvanceProduction').onclick = ()=>{
