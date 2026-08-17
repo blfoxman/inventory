@@ -185,6 +185,20 @@
           <tbody id="ciBody"></tbody>
         </table>
       </div>
+
+      <!-- ---------- SETTINGS: BILL OF MATERIALS TEMPLATES ---------- -->
+      <div id="bomTemplatesView" style="display:none;">
+        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">← Back to Settings</button>
+        <div class="toolbar-row">
+          <input id="bomSearch" placeholder="Search templates" oninput="renderBomTemplatesList()">
+          <div style="flex:1;"></div>
+          <button class="primary" onclick="openCreateBomTemplate()">+ Create Template</button>
+        </div>
+        <table class="data">
+          <thead><tr><th>Template Name</th><th>Output Item</th><th>Materials</th><th></th></tr></thead>
+          <tbody id="bomTemplatesBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -209,6 +223,38 @@
   <div class="field"><label>Flavor Name</label><input id="flvName"></div>
   <div class="err" id="flvErr"></div>
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAddFlavor')">Cancel</button><button class="primary" onclick="submitAddFlavor()">Add Flavor</button></div>
+</div></div>
+
+<div class="overlay" id="modalBomTemplate"><div class="modal" style="max-width:600px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <input id="bomTplName" placeholder="Template Name" style="flex:1;margin-right:10px;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13.5px;">
+    <button class="ghost small">Import</button>
+  </div>
+
+  <div class="card">
+    <h3>Output Items</h3>
+    <div class="field"><label>Item</label><select id="bomOutputItem"></select></div>
+  </div>
+
+  <div class="card">
+    <h3>Cannabis Materials Used</h3>
+    <div id="bomCannabisRows"></div>
+    <button class="ghost small" onclick="addBomMaterialRow('cannabis')">+ Add Item</button>
+  </div>
+
+  <div class="card">
+    <h3>Non-Cannabis Materials Used</h3>
+    <div id="bomNonCannabisRows"></div>
+    <button class="ghost small" onclick="addBomMaterialRow('noncannabis')">+ Add Item</button>
+  </div>
+
+  <div class="card">
+    <h3>Cost Categories Used</h3>
+    <div class="field"><label>Cost Category (Optional)</label><input id="bomCostCategory"></div>
+  </div>
+
+  <div class="err" id="bomTplErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalBomTemplate')">Cancel</button><button class="primary" onclick="submitBomTemplate()">Create Template</button></div>
 </div></div>
 
 <div class="overlay" id="modalCannabisItem"><div class="modal">
@@ -258,10 +304,10 @@ const SETTINGS_GRID = [
   {category:'Facility Setup', items:[
     {id:'nc_item', label:'Non-Cannabis Item', desc:'SKUs, columns, and flavors', icon:'📦', built:true},
     {id:'cannabis_items', label:'Cannabis Items', desc:'Item name, category, unit of measure', icon:'🌿', built:true},
+    {id:'bom_templates', label:'Bill of Materials Templates', desc:'Output item + cannabis/non-cannabis materials', icon:'📄', built:true},
     {id:'settings_brands', label:'Brands', desc:'Brands'},
     {id:'settings_locations', label:'Locations', desc:'Locations'},
     {id:'strains', label:'Strains', desc:'Strains'},
-    {id:'bom_templates_settings', label:'Bill of Materials Templates', desc:'Bill of Materials Templates'},
     {id:'customers_vendors', label:'Customers & Vendors', desc:'Customers & Vendors'},
     {id:'drivers', label:'Drivers', desc:'Drivers'},
     {id:'vehicles', label:'Vehicles', desc:'Vehicles'}
@@ -327,7 +373,7 @@ function enterApp(){
 }
 
 let expandedSidebar = {nc_inventory:true, settings:true};
-const SETTINGS_SUBVIEWS = ['team_access','nc_item','cannabis_items'];
+const SETTINGS_SUBVIEWS = ['team_access','nc_item','cannabis_items','bom_templates'];
 function renderSidebar(){
   const el = document.getElementById('sidebarItems');
   el.innerHTML = SIDEBAR_SECTIONS.map(s=>{
@@ -353,14 +399,16 @@ function switchSection(id){
   if(id==='team_access') label = 'Team & Access';
   if(id==='nc_item') label = 'Non-Cannabis Item';
   if(id==='cannabis_items') label = 'Cannabis Items';
+  if(id==='bom_templates') label = 'Bill of Materials Templates';
   document.getElementById('pageTitle').textContent = label;
-  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView','cannabisItemsView'].forEach(v=>document.getElementById(v).style.display='none');
+  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView','cannabisItemsView','bomTemplatesView'].forEach(v=>document.getElementById(v).style.display='none');
   if(id==='adjustment'){ document.getElementById('adjustmentView').style.display='block'; loadAdjustmentView(); }
   if(id==='fullview'){ document.getElementById('fullViewView').style.display='block'; loadFullView(); }
   if(id==='settings'){ document.getElementById('settingsView').style.display='block'; renderSettingsGrid(); }
   if(id==='nc_item'){ document.getElementById('ncItemBuilderView').style.display='block'; loadSkuBuilderView(); }
   if(id==='team_access'){ document.getElementById('teamAccessView').style.display='block'; loadTeamAccess(); }
   if(id==='cannabis_items'){ document.getElementById('cannabisItemsView').style.display='block'; loadCannabisItems(); }
+  if(id==='bom_templates'){ document.getElementById('bomTemplatesView').style.display='block'; loadBomTemplates(); }
 }
 
 // ---------- SETTINGS: CANNABIS ITEMS ----------
@@ -427,6 +475,119 @@ function renderCannabisItemsList(){
       ${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteCannabisItem('${i.id}')">Delete</button>` : ''}
     </td>
   </tr>`).join('');
+}
+
+// ---------- SETTINGS: BILL OF MATERIALS TEMPLATES ----------
+let bomCannabisItemsCache = [];
+let bomNoncannabisMaterialsCache = []; // composite "SKU - Flavor - Column" options
+let bomCannabisRows = [];
+let bomNonCannabisRows = [];
+async function fetchBomMaterialSources(){
+  const { data: items } = await sb.from('mi_cannabis_items').select('*').order('item_name');
+  bomCannabisItemsCache = items || [];
+  const [skusR, flavR, colsR] = await Promise.all([
+    sb.from('mi_nc_skus').select('*'),
+    sb.from('mi_nc_flavors').select('*'),
+    sb.from('mi_nc_columns').select('*')
+  ]);
+  const skuById = {}; (skusR.data||[]).forEach(s=> skuById[s.id]=s.name);
+  const skuByFlavor = {}; (flavR.data||[]).forEach(f=> skuByFlavor[f.id]=f);
+  bomNoncannabisMaterialsCache = [];
+  (colsR.data||[]).forEach(col=>{
+    (flavR.data||[]).filter(f=>f.sku_id===col.sku_id).forEach(f=>{
+      bomNoncannabisMaterialsCache.push(`${skuById[col.sku_id]||'?'} — ${f.name} — ${col.column_name}`);
+    });
+  });
+}
+function openCreateBomTemplate(){
+  document.getElementById('bomTplName').value='';
+  document.getElementById('bomCostCategory').value='';
+  document.getElementById('bomTplErr').classList.remove('show');
+  fetchBomMaterialSources().then(()=>{
+    document.getElementById('bomOutputItem').innerHTML = bomCannabisItemsCache.map(i=>`<option value="${i.id}" data-name="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</option>`).join('') || '<option value="">No cannabis items yet</option>';
+    bomCannabisRows = [{itemName:'',quantity:''}];
+    bomNonCannabisRows = [{itemName:'',quantity:''}];
+    renderBomMaterialRows('cannabis');
+    renderBomMaterialRows('noncannabis');
+  });
+  openModal('modalBomTemplate');
+}
+function renderBomMaterialRows(type){
+  const rows = type==='cannabis' ? bomCannabisRows : bomNonCannabisRows;
+  const containerId = type==='cannabis' ? 'bomCannabisRows' : 'bomNonCannabisRows';
+  const options = type==='cannabis' ? bomCannabisItemsCache.map(i=>i.item_name) : bomNoncannabisMaterialsCache;
+  const el = document.getElementById(containerId);
+  el.innerHTML = rows.map((row,i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;">
+      <div class="field" style="flex:2;margin-bottom:0;"><label>Item</label><select onchange="updateBomMaterialRow('${type}',${i},this.value)">
+        <option value="">Search for an item</option>
+        ${options.map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
+      </select></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updateBomMaterialRowQty('${type}',${i},this.value)"></div>
+      ${rows.length>1?`<button class="ghost small" onclick="removeBomMaterialRow('${type}',${i})">✕</button>`:''}
+    </div>`).join('');
+  const selects = el.querySelectorAll('select');
+  rows.forEach((row,i)=>{ if(selects[i]) selects[i].value = row.itemName || ''; });
+}
+function updateBomMaterialRow(type, i, value){ (type==='cannabis'?bomCannabisRows:bomNonCannabisRows)[i].itemName = value; }
+function updateBomMaterialRowQty(type, i, value){ (type==='cannabis'?bomCannabisRows:bomNonCannabisRows)[i].quantity = value; }
+function addBomMaterialRow(type){
+  if(type==='cannabis') bomCannabisRows.push({itemName:'',quantity:''}); else bomNonCannabisRows.push({itemName:'',quantity:''});
+  renderBomMaterialRows(type);
+}
+function removeBomMaterialRow(type, i){
+  if(type==='cannabis') bomCannabisRows.splice(i,1); else bomNonCannabisRows.splice(i,1);
+  renderBomMaterialRows(type);
+}
+async function submitBomTemplate(){
+  const errEl = document.getElementById('bomTplErr');
+  const name = document.getElementById('bomTplName').value.trim();
+  if(!name){ errEl.textContent='Enter a template name.'; errEl.classList.add('show'); return; }
+  const outputSel = document.getElementById('bomOutputItem');
+  const outputId = outputSel.value;
+  const outputName = outputSel.selectedOptions[0] ? outputSel.selectedOptions[0].dataset.name : '';
+  const cannabisMaterials = bomCannabisRows.filter(r=>r.itemName).map(r=>({item_name:r.itemName, quantity:r.quantity}));
+  const noncannabisMaterials = bomNonCannabisRows.filter(r=>r.itemName).map(r=>({item_name:r.itemName, quantity:r.quantity}));
+  const { error } = await sb.rpc('mi_create_bom_template', {
+    p_token: session.token, p_template_name: name, p_output_item_id: outputId || null, p_output_item_name: outputName,
+    p_cost_category: document.getElementById('bomCostCategory').value.trim(),
+    p_cannabis_materials: cannabisMaterials, p_noncannabis_materials: noncannabisMaterials, p_by: session.name
+  });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalBomTemplate');
+  await loadBomTemplates();
+}
+let bomTemplatesData = [];
+async function loadBomTemplates(){
+  const [tplR, matR] = await Promise.all([
+    sb.from('mi_bom_templates').select('*').order('created_at',{ascending:false}),
+    sb.from('mi_bom_template_materials').select('*')
+  ]);
+  if(tplR.error){ console.error(tplR.error); return; }
+  const countsByTpl = {};
+  (matR.data||[]).forEach(m=> countsByTpl[m.template_id] = (countsByTpl[m.template_id]||0)+1);
+  bomTemplatesData = (tplR.data||[]).map(t=>({...t, materialCount: countsByTpl[t.id]||0}));
+  renderBomTemplatesList();
+}
+function renderBomTemplatesList(){
+  const q = (document.getElementById('bomSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('bomTemplatesBody');
+  let rows = bomTemplatesData;
+  if(q) rows = rows.filter(t=> (t.template_name||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--dim);">No templates yet. Click "+ Create Template" to add one.</td></tr>`; return; }
+  body.innerHTML = rows.map(t=>`<tr>
+    <td style="font-weight:600;">${escapeHtml(t.template_name)}</td>
+    <td>${escapeHtml(t.output_item_name||'—')}</td>
+    <td>${t.materialCount} item(s)</td>
+    <td>${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteBomTemplate('${t.id}')">Delete</button>` : ''}</td>
+  </tr>`).join('');
+}
+async function deleteBomTemplate(id){
+  if(!confirm('Delete this template? This cannot be undone.')) return;
+  const { error } = await sb.rpc('mi_delete_bom_template', { p_token: session.token, p_id: id, p_by: session.name });
+  if(error){ alert('Could not delete: ' + error.message); return; }
+  await loadBomTemplates();
 }
 
 // ---------- SETTINGS (card grid) ----------
