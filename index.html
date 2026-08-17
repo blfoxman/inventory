@@ -189,7 +189,7 @@
           <button class="primary" onclick="openCreateProductionBatch()">Create Production Batch</button>
         </div>
         <table class="data">
-          <thead><tr><th>Production Batch Name</th><th>Item</th><th>Amount Created</th><th>Status</th><th>Packages Created</th></tr></thead>
+          <thead><tr><th>Production Batch Name</th><th>Item</th><th>Amount Created</th><th>Status</th><th>Packages Created</th><th></th></tr></thead>
           <tbody id="pbBody"></tbody>
         </table>
       </div>
@@ -279,7 +279,7 @@
   <div class="card">
     <h3>Overview</h3>
     <div class="field"><label>Production Batch Name (Optional)</label><input id="pbName" placeholder="Auto-generated if left blank"></div>
-    <div class="field"><label>Item Being Produced</label><div id="pbItemAc"></div></div>
+    <div class="field"><label>Item Being Produced</label><div id="pbItemAc"></div><div id="pbItemLocked" style="display:none;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13.5px;"></div></div>
     <div style="display:flex;gap:10px;">
       <div class="field" style="flex:1;"><label>Number of Packages</label><input id="pbNumPackages" type="number" value="1" min="1" onchange="syncPackageRowCount()"></div>
       <div class="field" style="flex:1;"><label>Estimated Quantity</label><input id="pbEstQty" type="number" oninput="recalcPbMaterialQuantities()"></div>
@@ -654,7 +654,9 @@ async function onPbItemChange(itemId){
   recalcPbMaterialQuantities();
 }
 let pbItemAc = null;
+let editingProductionBatchId = null;
 async function openCreateProductionBatch(){
+  editingProductionBatchId = null;
   document.getElementById('pbName').value = '';
   document.getElementById('pbNumPackages').value = '1';
   document.getElementById('pbEstQty').value=''; document.getElementById('pbActQty').value='';
@@ -662,6 +664,9 @@ async function openCreateProductionBatch(){
   document.getElementById('pbComplianceBatch').checked=false; document.getElementById('pbRequiresTesting').checked=false;
   document.getElementById('pbErr').classList.remove('show');
   document.getElementById('pbBomSourceNote').textContent = '';
+  document.getElementById('pbItemAc').style.display = '';
+  document.getElementById('pbItemLocked').style.display = 'none';
+  document.getElementById('pbEstQty').disabled = false;
   await fetchBomMaterialSources();
   pbItemAc = makeAutocomplete('pbItemAc', bomCannabisItemsCache.map(i=>({value:i.id, label:i.item_name})), onPbItemChange);
   pbBomSource = null;
@@ -670,8 +675,68 @@ async function openCreateProductionBatch(){
   renderPbMaterialRows('cannabis'); renderPbMaterialRows('noncannabis'); renderPackageRows();
   openModal('modalCreateProductionBatch');
 }
+async function openEditProductionBatch(batchId){
+  editingProductionBatchId = batchId;
+  const batch = productionBatchesData.find(b=>b.id===batchId);
+  if(!batch) return;
+  await fetchBomMaterialSources();
+  document.getElementById('pbName').value = batch.batch_name;
+  document.getElementById('pbNumPackages').value = batch.number_of_packages || 1;
+  document.getElementById('pbEstQty').value = batch.estimated_quantity || '';
+  document.getElementById('pbActQty').value = batch.actual_quantity || '';
+  document.getElementById('pbEstQty').disabled = true;
+  document.getElementById('pbComplianceBatch').checked = !!batch.compliance_batch;
+  document.getElementById('pbRequiresTesting').checked = !!batch.requires_testing;
+  document.getElementById('pbErr').classList.remove('show');
+  document.getElementById('pbItemAc').style.display = 'none';
+  document.getElementById('pbItemLocked').style.display = 'block';
+  document.getElementById('pbItemLocked').textContent = batch.item_name_snapshot || '—';
+  document.getElementById('pbBomSourceNote').innerHTML = `<span style="color:var(--dim);">Item and Bill of Materials can't be changed once a batch is created — delete and recreate if the wrong item was chosen.</span>`;
+
+  const [bomR, pkgR] = await Promise.all([
+    sb.from('mi_production_batch_bom').select('*').eq('batch_id', batchId),
+    sb.from('mi_production_batch_packages').select('*').eq('batch_id', batchId)
+  ]);
+  pbCannabisRows = (bomR.data||[]).filter(m=>m.material_type==='cannabis').map(m=>({itemName:m.item_name, quantity:m.quantity}));
+  pbNonCannabisRows = (bomR.data||[]).filter(m=>m.material_type==='noncannabis').map(m=>({itemName:m.item_name, quantity:m.quantity}));
+  pbBomSource = { found:true, templateName:'' };
+  pbPackageRows = (pkgR.data||[]).map(p=>({tag:p.package_tag, quantity:p.quantity||'', location:p.location||'', date:p.package_date||new Date().toISOString().slice(0,10)}));
+  if(pbPackageRows.length===0) pbPackageRows = [{tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}];
+  renderPbMaterialRowsReadonly();
+  renderPackageRows();
+  openModal('modalCreateProductionBatch');
+}
+function renderPbMaterialRowsReadonly(){
+  ['pbCannabisRows','pbNonCannabisRows'].forEach((containerId,idx)=>{
+    const rows = idx===0 ? pbCannabisRows : pbNonCannabisRows;
+    const el = document.getElementById(containerId);
+    el.innerHTML = rows.length===0 ? `<div class="hint">None</div>` : rows.map(row=>`
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+        <div style="flex:2;font-size:13.5px;">${escapeHtml(row.itemName)}</div>
+        <div style="flex:1;font-size:13.5px;font-weight:700;color:var(--amber);">${fmtQty(row.quantity)}</div>
+      </div>`).join('');
+  });
+}
 async function submitCreateProductionBatch(){
   const errEl = document.getElementById('pbErr');
+
+  if(editingProductionBatchId){
+    const name = document.getElementById('pbName').value.trim();
+    if(!name){ errEl.textContent='Enter a batch name.'; errEl.classList.add('show'); return; }
+    const packages = pbPackageRows.map(r=>({ package_tag: r.tag, quantity: r.quantity, location: r.location, package_date: r.date }));
+    const { error } = await sb.rpc('mi_update_production_batch', {
+      p_token: session.token, p_batch_id: editingProductionBatchId, p_batch_name: name,
+      p_compliance_batch: document.getElementById('pbComplianceBatch').checked,
+      p_requires_testing: document.getElementById('pbRequiresTesting').checked,
+      p_packages: packages, p_by: session.name
+    });
+    if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+    errEl.classList.remove('show');
+    closeModal('modalCreateProductionBatch');
+    await loadAndRenderProductionBatches();
+    return;
+  }
+
   const itemId = pbItemAc ? pbItemAc.getValue() : '';
   const itemObj = bomCannabisItemsCache.find(i=>i.id===itemId);
   const itemName = itemObj ? itemObj.item_name : '';
@@ -698,6 +763,12 @@ async function submitCreateProductionBatch(){
   closeModal('modalCreateProductionBatch');
   await loadAndRenderProductionBatches();
 }
+async function deleteProductionBatch(batchId){
+  if(!confirm("Delete this production batch? If it increased a Cannabis Item's quantity, that increase will be reversed. This cannot be undone.")) return;
+  const { error } = await sb.rpc('mi_delete_production_batch', { p_token: session.token, p_batch_id: batchId, p_by: session.name });
+  if(error){ alert('Could not delete: ' + error.message); return; }
+  await loadAndRenderProductionBatches();
+}
 let productionBatchesData = [];
 async function loadAndRenderProductionBatches(){
   const [batchesR, packagesR] = await Promise.all([
@@ -715,11 +786,13 @@ function renderProductionBatchesList(){
   const body = document.getElementById('pbBody');
   let rows = productionBatchesData;
   if(q) rows = rows.filter(b=> (b.batch_name||'').toLowerCase().includes(q));
-  if(rows.length===0){ body.innerHTML = `<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--dim);">No production batches yet.</td></tr>`; return; }
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--dim);">No production batches yet.</td></tr>`; return; }
   body.innerHTML = rows.map(b=>{
     const item = bomCannabisItemsCache.find(x=>x.id===b.item_id);
     const uom = item ? item.unit_of_measure : '';
-    return `<tr><td style="font-family:monospace;">${escapeHtml(b.batch_name)}</td><td>${escapeHtml(b.item_name_snapshot||'—')}</td><td>${b.actual_quantity||b.estimated_quantity||0} ${escapeHtml(uom||'')}</td><td>${escapeHtml(b.status)}</td><td>${b.packagesCreated}</td></tr>`;
+    return `<tr><td style="font-family:monospace;">${escapeHtml(b.batch_name)}</td><td>${escapeHtml(b.item_name_snapshot||'—')}</td><td>${b.actual_quantity||b.estimated_quantity||0} ${escapeHtml(uom||'')}</td><td>${escapeHtml(b.status)}</td><td>${b.packagesCreated}</td>
+      <td><button class="ghost small" onclick="openEditProductionBatch('${b.id}')">Edit</button>${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteProductionBatch('${b.id}')">Delete</button>` : ''}</td>
+    </tr>`;
   }).join('');
 }
 
@@ -862,7 +935,9 @@ async function fetchBomMaterialSources(){
   });
 }
 let bomOutputItemAc = null;
+let editingBomTemplateId = null;
 function openCreateBomTemplate(){
+  editingBomTemplateId = null;
   document.getElementById('bomTplName').value='';
   document.getElementById('bomCostCategory').value='';
   document.getElementById('bomTplErr').classList.remove('show');
@@ -873,6 +948,24 @@ function openCreateBomTemplate(){
     renderBomMaterialRows('cannabis');
     renderBomMaterialRows('noncannabis');
   });
+  openModal('modalBomTemplate');
+}
+async function openEditBomTemplate(templateId){
+  editingBomTemplateId = templateId;
+  const tpl = bomTemplatesData.find(t=>t.id===templateId);
+  if(!tpl) return;
+  document.getElementById('bomTplName').value = tpl.template_name;
+  document.getElementById('bomCostCategory').value = tpl.cost_category || '';
+  document.getElementById('bomTplErr').classList.remove('show');
+  await fetchBomMaterialSources();
+  bomOutputItemAc = makeAutocomplete('bomOutputItemAc', bomCannabisItemsCache.map(i=>({value:i.id, label:i.item_name})), ()=>{}, tpl.output_item_id);
+  const { data: materials } = await sb.from('mi_bom_template_materials').select('*').eq('template_id', templateId);
+  bomCannabisRows = (materials||[]).filter(m=>m.material_type==='cannabis').map(m=>({itemName:m.item_name, quantity:m.quantity||''}));
+  bomNonCannabisRows = (materials||[]).filter(m=>m.material_type==='noncannabis').map(m=>({itemName:m.item_name, quantity:m.quantity||''}));
+  if(bomCannabisRows.length===0) bomCannabisRows = [{itemName:'',quantity:''}];
+  if(bomNonCannabisRows.length===0) bomNonCannabisRows = [{itemName:'',quantity:''}];
+  renderBomMaterialRows('cannabis');
+  renderBomMaterialRows('noncannabis');
   openModal('modalBomTemplate');
 }
 function renderBomMaterialRows(type){
@@ -909,11 +1002,14 @@ async function submitBomTemplate(){
   const outputName = outputItem ? outputItem.item_name : '';
   const cannabisMaterials = bomCannabisRows.filter(r=>r.itemName).map(r=>({item_name:r.itemName, quantity:r.quantity}));
   const noncannabisMaterials = bomNonCannabisRows.filter(r=>r.itemName).map(r=>({item_name:r.itemName, quantity:r.quantity}));
-  const { error } = await sb.rpc('mi_create_bom_template', {
+  const rpc = editingBomTemplateId ? 'mi_update_bom_template' : 'mi_create_bom_template';
+  const params = {
     p_token: session.token, p_template_name: name, p_output_item_id: outputId || null, p_output_item_name: outputName,
     p_cost_category: document.getElementById('bomCostCategory').value.trim(),
     p_cannabis_materials: cannabisMaterials, p_noncannabis_materials: noncannabisMaterials, p_by: session.name
-  });
+  };
+  if(editingBomTemplateId) params.p_template_id = editingBomTemplateId;
+  const { error } = await sb.rpc(rpc, params);
   if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
   closeModal('modalBomTemplate');
@@ -941,7 +1037,10 @@ function renderBomTemplatesList(){
     <td style="font-weight:600;">${escapeHtml(t.template_name)}</td>
     <td>${escapeHtml(t.output_item_name||'—')}</td>
     <td>${t.materialCount} item(s)</td>
-    <td>${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteBomTemplate('${t.id}')">Delete</button>` : ''}</td>
+    <td>
+      <button class="ghost small" onclick="openEditBomTemplate('${t.id}')">Edit</button>
+      ${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteBomTemplate('${t.id}')">Delete</button>` : ''}
+    </td>
   </tr>`).join('');
 }
 async function deleteBomTemplate(id){
@@ -1033,7 +1132,14 @@ async function renderSkuBuilder(){
     <div class="card">
       <h3>Columns</h3>
       <div class="hint" style="margin-bottom:10px;">Component types for this SKU — name them however you need (Hardware, Inserts, Packaging, Display, Master Cases, etc.)</div>
-      ${currentBuilderColumns.length===0 ? '<div class="hint">No columns yet.</div>' : currentBuilderColumns.map(c=>`<div style="padding:6px 0;border-bottom:1px solid var(--line);">${escapeHtml(c.column_name)}</div>`).join('')}
+      ${currentBuilderColumns.length===0 ? '<div class="hint">No columns yet.</div>' : currentBuilderColumns.map(c=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);">
+          <span>${escapeHtml(c.column_name)}</span>
+          <div style="display:flex;gap:6px;">
+            <button class="ghost small" onclick="openRenameColumn('${c.id}','${escapeHtml(c.column_name)}')">Rename</button>
+            ${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteColumn('${c.id}')">Delete</button>` : ''}
+          </div>
+        </div>`).join('')}
       <button class="ghost small" style="margin-top:10px;" onclick="openAddColumn('${skuId}')">+ Add Column</button>
     </div>
     <div class="card">
@@ -1076,7 +1182,7 @@ async function submitAddFlavor(){
 }
 
 // ---------- RENAME / DELETE (SKUs and Flavors) ----------
-let renameTarget = null; // {type:'sku'|'flavor', id}
+let renameTarget = null; // {type:'sku'|'flavor'|'column', id}
 function openRenameSku(skuId){
   const sku = skusData.find(s=>s.id===skuId);
   renameTarget = { type:'sku', id: skuId };
@@ -1092,13 +1198,24 @@ function openRenameFlavor(flavorId, currentName){
   document.getElementById('renameErr').classList.remove('show');
   openModal('modalRename');
 }
+function openRenameColumn(columnId, currentName){
+  renameTarget = { type:'column', id: columnId };
+  document.getElementById('renameTitle').textContent = 'Rename Column';
+  document.getElementById('renameValue').value = currentName;
+  document.getElementById('renameErr').classList.remove('show');
+  openModal('modalRename');
+}
 async function submitRename(){
   const errEl = document.getElementById('renameErr');
   const name = document.getElementById('renameValue').value.trim();
   if(!name){ errEl.textContent='Enter a name.'; errEl.classList.add('show'); return; }
-  const rpc = renameTarget.type==='sku' ? 'mi_nc_update_sku' : 'mi_nc_update_flavor';
-  const idParam = renameTarget.type==='sku' ? { p_sku_id: renameTarget.id } : { p_flavor_id: renameTarget.id };
-  const { error } = await sb.rpc(rpc, { p_token: session.token, ...idParam, p_name: name, p_by: session.name });
+  const rpcByType = { sku:'mi_nc_update_sku', flavor:'mi_nc_update_flavor', column:'mi_nc_update_column' };
+  const idParamByType = {
+    sku: { p_sku_id: renameTarget.id },
+    flavor: { p_flavor_id: renameTarget.id },
+    column: { p_column_id: renameTarget.id }
+  };
+  const { error } = await sb.rpc(rpcByType[renameTarget.type], { p_token: session.token, ...idParamByType[renameTarget.type], p_name: name, p_by: session.name });
   if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
   closeModal('modalRename');
@@ -1117,6 +1234,12 @@ async function deleteSku(skuId){
 async function deleteFlavor(flavorId){
   if(!confirm('Delete this flavor? This permanently removes its inventory data for every column. This cannot be undone.')) return;
   const { error } = await sb.rpc('mi_nc_delete_flavor', { p_token: session.token, p_flavor_id: flavorId, p_by: session.name });
+  if(error){ alert('Could not delete: ' + error.message); return; }
+  renderSkuBuilder();
+}
+async function deleteColumn(columnId){
+  if(!confirm('Delete this column? This permanently removes its inventory data for every flavor. This cannot be undone.')) return;
+  const { error } = await sb.rpc('mi_nc_delete_column', { p_token: session.token, p_column_id: columnId, p_by: session.name });
   if(error){ alert('Could not delete: ' + error.message); return; }
   renderSkuBuilder();
 }
