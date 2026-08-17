@@ -173,6 +173,20 @@
         </table>
       </div>
 
+      <!-- ---------- MANUFACTURING: PRODUCTION BATCHES ---------- -->
+      <div id="productionBatchesView" style="display:none;">
+        <div class="hint" style="margin-bottom:12px;">Keep track of the creation of finished goods from raw materials at the facility</div>
+        <div class="toolbar-row">
+          <input id="pbSearch" placeholder="Search for a batch name" oninput="renderProductionBatchesList()">
+          <div style="flex:1;"></div>
+          <button class="primary" onclick="openCreateProductionBatch()">Create Production Batch</button>
+        </div>
+        <table class="data">
+          <thead><tr><th>Production Batch Name</th><th>Item</th><th>Amount Created</th><th>Status</th><th>Packages Created</th></tr></thead>
+          <tbody id="pbBody"></tbody>
+        </table>
+      </div>
+
       <!-- ---------- SETTINGS: NON-CANNABIS ITEM (SKU builder) ---------- -->
       <div id="ncItemBuilderView" style="display:none;">
         <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">← Back to Settings</button>
@@ -253,6 +267,44 @@
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAddFlavor')">Cancel</button><button class="primary" onclick="submitAddFlavor()">Add Flavor</button></div>
 </div></div>
 
+<div class="overlay" id="modalCreateProductionBatch"><div class="modal" style="max-width:640px;">
+  <h3>Create Production Batch</h3>
+  <div class="card">
+    <h3>Overview</h3>
+    <div class="field"><label>Production Batch Name (Optional)</label><input id="pbName" placeholder="Auto-generated if left blank"></div>
+    <div class="field"><label>Item Being Produced</label><select id="pbItem"></select></div>
+    <div style="display:flex;gap:10px;">
+      <div class="field" style="flex:1;"><label>Number of Packages</label><input id="pbNumPackages" type="number" value="1" min="1" onchange="syncPackageRowCount()"></div>
+      <div class="field" style="flex:1;"><label>Estimated Quantity</label><input id="pbEstQty" type="number"></div>
+      <div class="field" style="flex:1;"><label>Actual Quantity</label><input id="pbActQty" type="number"></div>
+    </div>
+    <input type="hidden" id="pbStartingTag">
+    <div style="display:flex;gap:16px;font-size:13px;">
+      <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="pbComplianceBatch"> Compliance Batch</label>
+      <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="pbRequiresTesting"> Requires Testing</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Bill of Materials</h3>
+    <div class="hint" style="margin-bottom:8px;">Cannabis Materials</div>
+    <div id="pbCannabisRows"></div>
+    <button class="ghost small" onclick="addPbMaterialRow('cannabis')">+ Add Item</button>
+    <div class="hint" style="margin:14px 0 8px;">Non-Cannabis Materials</div>
+    <div id="pbNonCannabisRows"></div>
+    <button class="ghost small" onclick="addPbMaterialRow('noncannabis')">+ Add Item</button>
+  </div>
+
+  <div class="card">
+    <h3>Package(s) Created</h3>
+    <div id="pbPackageRowsContainer"></div>
+    <button class="ghost small" onclick="addPackageRow()">+ Create Another Package</button>
+  </div>
+
+  <div class="err" id="pbErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateProductionBatch')">Cancel</button><button class="primary" onclick="submitCreateProductionBatch()">Create Production Batch</button></div>
+</div></div>
+
 <div class="overlay" id="modalBomTemplate"><div class="modal" style="max-width:600px;">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
     <input id="bomTplName" placeholder="Template Name" style="flex:1;margin-right:10px;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13.5px;">
@@ -321,6 +373,9 @@ let session = null;
 let currentSection = 'fullview';
 
 const SIDEBAR_SECTIONS = [
+  {id:'manufacturing', label:'Manufacturing', icon:'🏭', children:[
+    {id:'production_batches', label:'Production Batches', built:true}
+  ]},
   {id:'inventory', label:'Inventory', icon:'📦', children:[
     {id:'nc_inventory', label:'Non Cannabis Inventory', children:[
       {id:'adjustment', label:'Adjustment', built:true},
@@ -453,7 +508,7 @@ function switchSection(id){
   if(id==='cannabis_adjustment') label = 'Adjustment';
   if(id==='cannabis_fullview') label = 'Cannabis Full View';
   document.getElementById('pageTitle').textContent = label;
-  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView','cannabisItemsView','bomTemplatesView','cannabisAdjustmentView','cannabisFullViewView'].forEach(v=>document.getElementById(v).style.display='none');
+  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView','cannabisItemsView','bomTemplatesView','cannabisAdjustmentView','cannabisFullViewView','productionBatchesView'].forEach(v=>document.getElementById(v).style.display='none');
   if(id==='adjustment'){ document.getElementById('adjustmentView').style.display='block'; loadAdjustmentView(); }
   if(id==='fullview'){ document.getElementById('fullViewView').style.display='block'; loadFullView(); }
   if(id==='settings'){ document.getElementById('settingsView').style.display='block'; renderSettingsGrid(); }
@@ -463,6 +518,136 @@ function switchSection(id){
   if(id==='bom_templates'){ document.getElementById('bomTemplatesView').style.display='block'; loadBomTemplates(); }
   if(id==='cannabis_adjustment'){ document.getElementById('cannabisAdjustmentView').style.display='block'; loadCannabisAdjustmentView(); }
   if(id==='cannabis_fullview'){ document.getElementById('cannabisFullViewView').style.display='block'; loadCannabisFullView(); }
+  if(id==='production_batches'){ document.getElementById('productionBatchesView').style.display='block'; loadAndRenderProductionBatches(); }
+}
+
+// ---------- MANUFACTURING: PRODUCTION BATCHES ----------
+function genTag(){
+  const bytes = new Uint8Array(12);
+  (window.crypto || window.msCrypto).getRandomValues(bytes);
+  return [...bytes].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+function genBatchName(){
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
+  const rand = Math.random().toString(36).slice(2,8);
+  return `pb.${mm}.${dd}.${rand}`;
+}
+let pbCannabisRows = [];
+let pbNonCannabisRows = [];
+let pbPackageRows = [];
+function renderPbMaterialRows(type){
+  const rows = type==='cannabis' ? pbCannabisRows : pbNonCannabisRows;
+  const containerId = type==='cannabis' ? 'pbCannabisRows' : 'pbNonCannabisRows';
+  const options = type==='cannabis' ? bomCannabisItemsCache.map(i=>i.item_name) : bomNoncannabisMaterialsCache;
+  const el = document.getElementById(containerId);
+  el.innerHTML = rows.map((row,i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;">
+      <div class="field" style="flex:2;margin-bottom:0;"><label>Item</label><select onchange="updatePbMaterialRow('${type}',${i},this.value)">
+        <option value="">Select an item</option>
+        ${options.map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
+      </select></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updatePbMaterialRowQty('${type}',${i},this.value)"></div>
+      ${rows.length>1?`<button class="ghost small" onclick="removePbMaterialRow('${type}',${i})">✕</button>`:''}
+    </div>`).join('');
+  const selects = el.querySelectorAll('select');
+  rows.forEach((row,i)=>{ if(selects[i]) selects[i].value = row.itemName || ''; });
+}
+function updatePbMaterialRow(type, i, value){ (type==='cannabis'?pbCannabisRows:pbNonCannabisRows)[i].itemName = value; }
+function updatePbMaterialRowQty(type, i, value){ (type==='cannabis'?pbCannabisRows:pbNonCannabisRows)[i].quantity = value; }
+function addPbMaterialRow(type){
+  if(type==='cannabis') pbCannabisRows.push({itemName:'',quantity:''}); else pbNonCannabisRows.push({itemName:'',quantity:''});
+  renderPbMaterialRows(type);
+}
+function removePbMaterialRow(type, i){
+  if(type==='cannabis') pbCannabisRows.splice(i,1); else pbNonCannabisRows.splice(i,1);
+  renderPbMaterialRows(type);
+}
+function renderPackageRows(){
+  const el = document.getElementById('pbPackageRowsContainer');
+  el.innerHTML = pbPackageRows.map((row,i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;">
+      <div class="field" style="flex:2;margin-bottom:0;"><label>Package Tag</label><input value="${escapeHtml(row.tag)}" oninput="updatePackageRow(${i},'tag',this.value)" style="font-family:monospace;font-size:12px;"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updatePackageRow(${i},'quantity',this.value)"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Location</label><input value="${escapeHtml(row.location)}" oninput="updatePackageRow(${i},'location',this.value)"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Date</label><input type="date" value="${row.date}" oninput="updatePackageRow(${i},'date',this.value)"></div>
+      ${pbPackageRows.length>1?`<button class="ghost small" onclick="removePackageRow(${i})">✕</button>`:''}
+    </div>`).join('');
+}
+function updatePackageRow(i, field, value){ pbPackageRows[i][field] = value; }
+function addPackageRow(){ pbPackageRows.push({tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}); renderPackageRows(); document.getElementById('pbNumPackages').value = pbPackageRows.length; }
+function removePackageRow(i){ pbPackageRows.splice(i,1); renderPackageRows(); document.getElementById('pbNumPackages').value = pbPackageRows.length; }
+function syncPackageRowCount(){
+  const n = Math.max(1, parseInt(document.getElementById('pbNumPackages').value,10)||1);
+  while(pbPackageRows.length < n) pbPackageRows.push({tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)});
+  while(pbPackageRows.length > n) pbPackageRows.pop();
+  renderPackageRows();
+}
+async function openCreateProductionBatch(){
+  document.getElementById('pbName').value = '';
+  document.getElementById('pbNumPackages').value = '1';
+  document.getElementById('pbEstQty').value=''; document.getElementById('pbActQty').value='';
+  document.getElementById('pbStartingTag').value = genTag();
+  document.getElementById('pbComplianceBatch').checked=false; document.getElementById('pbRequiresTesting').checked=false;
+  document.getElementById('pbErr').classList.remove('show');
+  await fetchBomMaterialSources();
+  document.getElementById('pbItem').innerHTML = bomCannabisItemsCache.map(i=>`<option value="${i.id}" data-name="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</option>`).join('') || '<option value="">No cannabis items yet — create one first</option>';
+  pbCannabisRows = [{itemName:'',quantity:''}];
+  pbNonCannabisRows = [{itemName:'',quantity:''}];
+  pbPackageRows = [{tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}];
+  renderPbMaterialRows('cannabis'); renderPbMaterialRows('noncannabis'); renderPackageRows();
+  openModal('modalCreateProductionBatch');
+}
+async function submitCreateProductionBatch(){
+  const errEl = document.getElementById('pbErr');
+  const itemSel = document.getElementById('pbItem');
+  const itemId = itemSel.value;
+  const itemName = itemSel.selectedOptions[0] ? itemSel.selectedOptions[0].dataset.name : '';
+  if(!itemId){ errEl.textContent='Choose an item being produced.'; errEl.classList.add('show'); return; }
+  const batch = {
+    batch_name: document.getElementById('pbName').value.trim() || genBatchName(),
+    item_id: itemId, item_name_snapshot: itemName,
+    number_of_packages: document.getElementById('pbNumPackages').value.trim(),
+    estimated_quantity: document.getElementById('pbEstQty').value.trim(),
+    actual_quantity: document.getElementById('pbActQty').value.trim(),
+    starting_tag: document.getElementById('pbStartingTag').value.trim() || genTag(),
+    compliance_batch: document.getElementById('pbComplianceBatch').checked,
+    requires_testing: document.getElementById('pbRequiresTesting').checked
+  };
+  const bom = [
+    ...pbCannabisRows.filter(r=>r.itemName).map(r=>({material_type:'cannabis', item_name:r.itemName, quantity:r.quantity})),
+    ...pbNonCannabisRows.filter(r=>r.itemName).map(r=>({material_type:'noncannabis', item_name:r.itemName, quantity:r.quantity}))
+  ];
+  const packages = pbPackageRows.map(r=>({ package_tag: r.tag, quantity: r.quantity, location: r.location, package_date: r.date }));
+  const { error } = await sb.rpc('mi_create_production_batch', { p_token: session.token, p_batch: batch, p_bom: bom, p_packages: packages, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCreateProductionBatch');
+  await loadAndRenderProductionBatches();
+}
+let productionBatchesData = [];
+async function loadAndRenderProductionBatches(){
+  const [batchesR, packagesR] = await Promise.all([
+    sb.from('mi_production_batches').select('*').order('created_at',{ascending:false}),
+    sb.from('mi_production_batch_packages').select('batch_id')
+  ]);
+  if(batchesR.error){ console.error(batchesR.error); return; }
+  const counts = {};
+  (packagesR.data||[]).forEach(p=> counts[p.batch_id] = (counts[p.batch_id]||0)+1);
+  productionBatchesData = (batchesR.data||[]).map(b=>({...b, packagesCreated: counts[b.id]||0}));
+  renderProductionBatchesList();
+}
+function renderProductionBatchesList(){
+  const q = (document.getElementById('pbSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('pbBody');
+  let rows = productionBatchesData;
+  if(q) rows = rows.filter(b=> (b.batch_name||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--dim);">No production batches yet.</td></tr>`; return; }
+  body.innerHTML = rows.map(b=>{
+    const item = bomCannabisItemsCache.find(x=>x.id===b.item_id);
+    const uom = item ? item.unit_of_measure : '';
+    return `<tr><td style="font-family:monospace;">${escapeHtml(b.batch_name)}</td><td>${escapeHtml(b.item_name_snapshot||'—')}</td><td>${b.actual_quantity||b.estimated_quantity||0} ${escapeHtml(uom||'')}</td><td>${escapeHtml(b.status)}</td><td>${b.packagesCreated}</td></tr>`;
+  }).join('');
 }
 
 // ---------- CANNABIS INVENTORY: ADJUSTMENT ----------
