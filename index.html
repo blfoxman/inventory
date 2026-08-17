@@ -282,7 +282,7 @@
     <div class="field"><label>Item Being Produced</label><div id="pbItemAc"></div></div>
     <div style="display:flex;gap:10px;">
       <div class="field" style="flex:1;"><label>Number of Packages</label><input id="pbNumPackages" type="number" value="1" min="1" onchange="syncPackageRowCount()"></div>
-      <div class="field" style="flex:1;"><label>Estimated Quantity</label><input id="pbEstQty" type="number"></div>
+      <div class="field" style="flex:1;"><label>Estimated Quantity</label><input id="pbEstQty" type="number" oninput="recalcPbMaterialQuantities()"></div>
       <div class="field" style="flex:1;"><label>Actual Quantity</label><input id="pbActQty" type="number"></div>
     </div>
     <input type="hidden" id="pbStartingTag">
@@ -595,13 +595,21 @@ function renderPbMaterialRows(type){
     el.innerHTML = `<div class="hint">This template has no ${type==='cannabis'?'cannabis':'non-cannabis'} materials.</div>`;
     return;
   }
-  el.innerHTML = rows.map((row,i)=>`
+  el.innerHTML = rows.map((row)=>`
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
       <div style="flex:2;font-size:13.5px;">${escapeHtml(row.itemName)}</div>
-      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updatePbMaterialRowQty('${type}',${i},this.value)"></div>
+      <div style="flex:1;font-size:12px;color:var(--dim);">${row.perUnit || 0} per unit</div>
+      <div style="flex:1;font-size:13.5px;font-weight:700;color:var(--amber);">${fmtQty(row.quantity)} needed</div>
     </div>`).join('');
 }
-function updatePbMaterialRowQty(type, i, value){ (type==='cannabis'?pbCannabisRows:pbNonCannabisRows)[i].quantity = value; }
+function fmtQty(n){ return (n===''||n==null||isNaN(n)) ? '—' : n; }
+function recalcPbMaterialQuantities(){
+  const estQty = parseFloat(document.getElementById('pbEstQty').value) || 0;
+  pbCannabisRows.forEach(row=> row.quantity = row.perUnit ? +(row.perUnit * estQty).toFixed(4) : 0);
+  pbNonCannabisRows.forEach(row=> row.quantity = row.perUnit ? +(row.perUnit * estQty).toFixed(4) : 0);
+  renderPbMaterialRows('cannabis');
+  renderPbMaterialRows('noncannabis');
+}
 function renderPackageRows(){
   const el = document.getElementById('pbPackageRowsContainer');
   el.innerHTML = pbPackageRows.map((row,i)=>`
@@ -640,10 +648,10 @@ async function onPbItemChange(itemId){
   const tpl = templates[0];
   const { data: materials } = await sb.from('mi_bom_template_materials').select('*').eq('template_id', tpl.id);
   pbBomSource = { found:true, templateName: tpl.template_name };
-  pbCannabisRows = (materials||[]).filter(m=>m.material_type==='cannabis').map(m=>({itemName:m.item_name, quantity:m.quantity||''}));
-  pbNonCannabisRows = (materials||[]).filter(m=>m.material_type==='noncannabis').map(m=>({itemName:m.item_name, quantity:m.quantity||''}));
-  noteEl.innerHTML = `Materials from BOM Template: <b style="color:var(--amber);">${escapeHtml(tpl.template_name)}</b>`;
-  renderPbMaterialRows('cannabis'); renderPbMaterialRows('noncannabis');
+  pbCannabisRows = (materials||[]).filter(m=>m.material_type==='cannabis').map(m=>({itemName:m.item_name, perUnit:m.quantity||0, quantity:0}));
+  pbNonCannabisRows = (materials||[]).filter(m=>m.material_type==='noncannabis').map(m=>({itemName:m.item_name, perUnit:m.quantity||0, quantity:0}));
+  noteEl.innerHTML = `Materials from BOM Template: <b style="color:var(--amber);">${escapeHtml(tpl.template_name)}</b> — enter Estimated Quantity above to calculate totals needed`;
+  recalcPbMaterialQuantities();
 }
 let pbItemAc = null;
 async function openCreateProductionBatch(){
