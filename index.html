@@ -145,6 +145,34 @@
         <div id="fullViewTableWrap"></div>
       </div>
 
+      <!-- ---------- CANNABIS INVENTORY: ADJUSTMENT ---------- -->
+      <div id="cannabisAdjustmentView" style="display:none;">
+        <div class="card">
+          <h3>Make an Adjustment</h3>
+          <div class="field"><label>Item</label><select id="caItem" onchange="onCaItemChange()"></select></div>
+          <div class="hint" id="caCurrentQty" style="margin-bottom:10px;"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <div class="field" style="flex:1;min-width:140px;"><label>Increase or Decrease</label><select id="caType"><option value="increase">Increase</option><option value="decrease">Decrease</option></select></div>
+            <div class="field" style="flex:1;min-width:140px;"><label>Amount</label><input id="caAmount" type="number" min="0" step="1"></div>
+          </div>
+          <div class="field"><label>Reason</label><input id="caReason" placeholder="e.g. Physical count correction"></div>
+          <div class="err" id="caErr"></div>
+          <button class="primary" onclick="submitCannabisAdjustment()">Submit Adjustment</button>
+        </div>
+        <div class="card">
+          <h3>Recent Adjustments</h3>
+          <div id="caLogList"></div>
+        </div>
+      </div>
+
+      <!-- ---------- CANNABIS INVENTORY: FULL VIEW ---------- -->
+      <div id="cannabisFullViewView" style="display:none;">
+        <table class="data">
+          <thead><tr><th>Item Name</th><th>Category</th><th>Unit of Measure</th><th>Quantity</th></tr></thead>
+          <tbody id="caFullViewBody"></tbody>
+        </table>
+      </div>
+
       <!-- ---------- SETTINGS: NON-CANNABIS ITEM (SKU builder) ---------- -->
       <div id="ncItemBuilderView" style="display:none;">
         <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">← Back to Settings</button>
@@ -293,9 +321,15 @@ let session = null;
 let currentSection = 'fullview';
 
 const SIDEBAR_SECTIONS = [
-  {id:'nc_inventory', label:'Non Cannabis Inventory', icon:'📦', children:[
-    {id:'adjustment', label:'Adjustment', built:true},
-    {id:'fullview', label:'Non Cannabis Full View', built:true}
+  {id:'inventory', label:'Inventory', icon:'📦', children:[
+    {id:'nc_inventory', label:'Non Cannabis Inventory', children:[
+      {id:'adjustment', label:'Adjustment', built:true},
+      {id:'fullview', label:'Non Cannabis Full View', built:true}
+    ]},
+    {id:'cannabis_inventory', label:'Cannabis Inventory', children:[
+      {id:'cannabis_adjustment', label:'Adjustment', built:true},
+      {id:'cannabis_fullview', label:'Cannabis Full View', built:true}
+    ]}
   ]},
   {id:'settings', label:'Settings', icon:'⚙️', built:true}
 ];
@@ -376,32 +410,50 @@ let expandedSidebar = {nc_inventory:true, settings:true};
 const SETTINGS_SUBVIEWS = ['team_access','nc_item','cannabis_items','bom_templates'];
 function renderSidebar(){
   const el = document.getElementById('sidebarItems');
-  el.innerHTML = SIDEBAR_SECTIONS.map(s=>{
-    if(!s.children){
-      const active = currentSection===s.id || (s.id==='settings' && SETTINGS_SUBVIEWS.includes(currentSection));
-      return `<div class="sb-item ${active?'active':''}" onclick="switchSection('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}</div>`;
+  el.innerHTML = SIDEBAR_SECTIONS.map(s=>renderSidebarNode(s, 0)).join('');
+}
+function nodeContainsActive(node){
+  if(!node.children) return node.id===currentSection || (node.id==='settings' && SETTINGS_SUBVIEWS.includes(currentSection));
+  return node.children.some(c=>nodeContainsActive(c));
+}
+function renderSidebarNode(node, depth){
+  const indent = 18 + depth*18;
+  if(!node.children){
+    if(!node.built){
+      return `<div class="sb-item soon" style="padding-left:${indent}px;">${node.icon?`<span class="sb-icon">${node.icon}</span>`:''}${escapeHtml(node.label)}<span class="sb-soon-tag">Not built</span></div>`;
     }
-    const hasActiveChild = s.children.some(c=>c.id===currentSection);
-    const isOpen = !!expandedSidebar[s.id] || hasActiveChild;
-    let block = `<div class="sb-item ${hasActiveChild?'active':''}" onclick="toggleSidebarGroup('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span style="margin-left:auto;font-size:10px;">${isOpen?'▲':'▼'}</span></div>`;
-    if(isOpen){
-      block += s.children.map(c=>`<div class="sb-item ${currentSection===c.id?'active':''}" style="padding-left:36px;" onclick="switchSection('${c.id}')">${escapeHtml(c.label)}</div>`).join('');
-    }
-    return block;
-  }).join('');
+    const active = nodeContainsActive(node);
+    return `<div class="sb-item ${active?'active':''}" style="padding-left:${indent}px;" onclick="switchSection('${node.id}')">${node.icon?`<span class="sb-icon">${node.icon}</span>`:''}${escapeHtml(node.label)}</div>`;
+  }
+  const hasActiveDescendant = nodeContainsActive(node);
+  const isOpen = !!expandedSidebar[node.id] || hasActiveDescendant;
+  let html = `<div class="sb-item ${hasActiveDescendant?'active':''}" style="padding-left:${indent}px;" onclick="toggleSidebarGroup('${node.id}')">${node.icon?`<span class="sb-icon">${node.icon}</span>`:''}${escapeHtml(node.label)}<span style="margin-left:auto;font-size:10px;">${isOpen?'▲':'▼'}</span></div>`;
+  if(isOpen){
+    html += node.children.map(c=>renderSidebarNode(c, depth+1)).join('');
+  }
+  return html;
 }
 function toggleSidebarGroup(id){ expandedSidebar[id] = !expandedSidebar[id]; renderSidebar(); }
+function findNodeById(nodes, id){
+  for(const n of nodes){
+    if(n.id===id) return n;
+    if(n.children){ const found = findNodeById(n.children, id); if(found) return found; }
+  }
+  return null;
+}
 function switchSection(id){
   currentSection = id;
   renderSidebar();
-  let label = id==='settings' ? 'Settings' : id;
-  for(const s of SIDEBAR_SECTIONS){ if(s.children){ const c = s.children.find(x=>x.id===id); if(c){ label = c.label; break; } } }
+  const node = findNodeById(SIDEBAR_SECTIONS, id);
+  let label = node ? node.label : id;
   if(id==='team_access') label = 'Team & Access';
   if(id==='nc_item') label = 'Non-Cannabis Item';
   if(id==='cannabis_items') label = 'Cannabis Items';
   if(id==='bom_templates') label = 'Bill of Materials Templates';
+  if(id==='cannabis_adjustment') label = 'Adjustment';
+  if(id==='cannabis_fullview') label = 'Cannabis Full View';
   document.getElementById('pageTitle').textContent = label;
-  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView','cannabisItemsView','bomTemplatesView'].forEach(v=>document.getElementById(v).style.display='none');
+  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView','cannabisItemsView','bomTemplatesView','cannabisAdjustmentView','cannabisFullViewView'].forEach(v=>document.getElementById(v).style.display='none');
   if(id==='adjustment'){ document.getElementById('adjustmentView').style.display='block'; loadAdjustmentView(); }
   if(id==='fullview'){ document.getElementById('fullViewView').style.display='block'; loadFullView(); }
   if(id==='settings'){ document.getElementById('settingsView').style.display='block'; renderSettingsGrid(); }
@@ -409,6 +461,57 @@ function switchSection(id){
   if(id==='team_access'){ document.getElementById('teamAccessView').style.display='block'; loadTeamAccess(); }
   if(id==='cannabis_items'){ document.getElementById('cannabisItemsView').style.display='block'; loadCannabisItems(); }
   if(id==='bom_templates'){ document.getElementById('bomTemplatesView').style.display='block'; loadBomTemplates(); }
+  if(id==='cannabis_adjustment'){ document.getElementById('cannabisAdjustmentView').style.display='block'; loadCannabisAdjustmentView(); }
+  if(id==='cannabis_fullview'){ document.getElementById('cannabisFullViewView').style.display='block'; loadCannabisFullView(); }
+}
+
+// ---------- CANNABIS INVENTORY: ADJUSTMENT ----------
+async function loadCannabisAdjustmentView(){
+  const { data, error } = await sb.from('mi_cannabis_items').select('*').order('item_name');
+  if(error){ console.error(error); return; }
+  cannabisItemsData = data || [];
+  document.getElementById('caItem').innerHTML = cannabisItemsData.map(i=>`<option value="${i.id}">${escapeHtml(i.item_name)}</option>`).join('') || '<option value="">No cannabis items yet</option>';
+  onCaItemChange();
+  await loadCannabisAdjustmentLog();
+}
+function onCaItemChange(){
+  const itemId = document.getElementById('caItem').value;
+  const item = cannabisItemsData.find(i=>i.id===itemId);
+  document.getElementById('caCurrentQty').textContent = item ? `Current quantity: ${item.quantity} ${item.unit_of_measure}` : '';
+}
+async function submitCannabisAdjustment(){
+  const errEl = document.getElementById('caErr');
+  const itemId = document.getElementById('caItem').value;
+  const type = document.getElementById('caType').value;
+  const amount = parseFloat(document.getElementById('caAmount').value);
+  const reason = document.getElementById('caReason').value.trim();
+  if(!itemId){ errEl.textContent='Choose an item.'; errEl.classList.add('show'); return; }
+  if(!amount || amount<=0){ errEl.textContent='Enter an amount greater than 0.'; errEl.classList.add('show'); return; }
+  if(!reason){ errEl.textContent='Enter a reason.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_cannabis_adjust', { p_token: session.token, p_item_id: itemId, p_type: type, p_amount: amount, p_reason: reason, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  document.getElementById('caAmount').value=''; document.getElementById('caReason').value='';
+  await loadCannabisAdjustmentView();
+}
+async function loadCannabisAdjustmentLog(){
+  const { data, error } = await sb.from('mi_cannabis_adjustments').select('*').order('adjusted_at',{ascending:false}).limit(30);
+  const el = document.getElementById('caLogList');
+  if(error){ el.innerHTML = `<div class="hint">Could not load log.</div>`; return; }
+  if(!data || data.length===0){ el.innerHTML = `<div class="hint">No adjustments yet.</div>`; return; }
+  el.innerHTML = data.map(a=>`<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px;">
+    <b style="color:var(--amber);">${escapeHtml(a.adjusted_by||'Unknown')}</b> ${a.adjustment_type==='increase'?'increased':'decreased'} <b>${escapeHtml(a.item_name_snapshot)}</b> by ${a.amount} (${a.quantity_before} → ${a.quantity_after}) — "${escapeHtml(a.reason)}"
+    <div class="hint">${new Date(a.adjusted_at).toLocaleString()}</div>
+  </div>`).join('');
+}
+
+// ---------- CANNABIS INVENTORY: FULL VIEW ----------
+async function loadCannabisFullView(){
+  const { data, error } = await sb.from('mi_cannabis_items').select('*').order('item_name');
+  const body = document.getElementById('caFullViewBody');
+  if(error){ body.innerHTML = `<tr><td colspan="4">Could not load: ${escapeHtml(error.message)}</td></tr>`; return; }
+  if(!data || data.length===0){ body.innerHTML = `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--dim);">No cannabis items yet — add some under Settings → Cannabis Items.</td></tr>`; return; }
+  body.innerHTML = data.map(i=>`<tr><td style="font-weight:600;">${escapeHtml(i.item_name)}</td><td>${escapeHtml(i.category)}</td><td>${escapeHtml(i.unit_of_measure)}</td><td class="${i.quantity===0?'qty-zero':''}">${i.quantity}</td></tr>`).join('');
 }
 
 // ---------- SETTINGS: CANNABIS ITEMS ----------
