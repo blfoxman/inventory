@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MI Inventory Flow</title>
+<title>Black Fox ERP</title>
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#17140f">
 <link rel="apple-touch-icon" href="./icon-192.png">
@@ -13,10 +13,11 @@
 <style>
   :root{
     --bg:#17140f; --panel:#211d17; --panel2:#2a251d; --line:#3a3226;
-    --text:#ede6d8; --dim:#a89a82; --amber:#e0a838; --amber-dim:#8a6a26; --rust:#c1573f; --radius:10px;
+    --text:#ede6d8; --dim:#a89a82; --amber:#e0a838; --amber-dim:#8a6a26; --rust:#c1573f; --sage:#8ea377; --radius:10px;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+
   #loginScreen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;}
   .login-box{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;max-width:360px;padding:28px;}
   .login-box h1{margin:0 0 4px;font-size:20px;font-weight:700;}
@@ -24,46 +25,156 @@
   .sub{color:var(--dim);font-size:12.5px;margin-bottom:20px;}
   .field{margin-bottom:12px;}
   .field label{display:block;font-size:11.5px;color:var(--dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;}
-  .field input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13.5px;font-family:inherit;}
-  button.primary{width:100%;margin-top:8px;font-size:13px;border-radius:8px;padding:10px 14px;cursor:pointer;font-weight:600;border:1px solid var(--amber);background:var(--amber);color:#1a1509;}
+  .field input,.field select,.field textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13.5px;font-family:inherit;}
+  button.primary{font-size:13px;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600;border:1px solid var(--amber);background:var(--amber);color:#1a1509;}
   button.primary:hover{filter:brightness(1.08);}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 12px;font-size:12.5px;cursor:pointer;}
+  button.ghost:hover{background:var(--panel2);}
+  button.small{padding:5px 9px;font-size:12px;}
   .err{color:var(--rust);font-size:12px;margin-top:6px;display:none;}
   .err.show{display:block;}
+  .hint{font-size:11.5px;color:var(--dim);}
 
-  #app{display:none;max-width:900px;margin:0 auto;padding:40px 16px;}
-  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;}
-  header h1{font-size:20px;font-weight:700;margin:0;}
-  header h1 span{color:var(--amber);}
-  .who{font-size:13px;color:var(--dim);}
+  #shell{display:none;min-height:100vh;}
+  #sidebar{width:230px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);padding:14px 0;}
+  #sidebar .sb-title{padding:0 18px 14px;font-size:15px;font-weight:700;border-bottom:1px solid var(--line);margin-bottom:8px;}
+  #sidebar .sb-title span{color:var(--amber);}
+  .sb-item{display:flex;align-items:center;gap:10px;padding:9px 18px;font-size:13px;font-weight:600;color:var(--dim);cursor:pointer;border-left:3px solid transparent;}
+  .sb-item:hover{background:var(--panel2);color:var(--text);}
+  .sb-item.active{background:var(--panel2);color:var(--amber);border-left-color:var(--amber);}
+  .sb-item .sb-icon{width:18px;text-align:center;}
+  #mainContent{flex:1;min-width:0;}
+  #app{max-width:1240px;margin:0;padding:20px 24px 80px;}
+
+  header.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+  header.topbar h1{font-size:20px;font-weight:700;margin:0;}
+  header.topbar h1 span{color:var(--amber);}
+  .who{font-size:13px;color:var(--dim);display:flex;align-items:center;gap:10px;}
   .who b{color:var(--text);}
-  button.ghost{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 12px;font-size:12.5px;cursor:pointer;}
-  .empty-state{background:var(--panel);border:1px dashed var(--line);border-radius:var(--radius);padding:48px 24px;text-align:center;color:var(--dim);}
-  .empty-state h2{color:var(--text);font-size:16px;margin:0 0 8px;}
+
+  .toolbar-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;}
+  .toolbar-row select,.toolbar-row input{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13px;min-width:180px;}
+
+  table.data{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
+  table.data thead th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--dim);padding:9px 12px;border-bottom:1px solid var(--line);background:var(--panel2);white-space:nowrap;}
+  table.data tbody td{padding:9px 12px;font-size:13px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;}
+  table.data tbody tr:last-child td{border-bottom:none;}
+  table.data tbody tr:hover{background:var(--panel2);}
+  .qty-zero{color:#5f5747;}
+  .empty-state{background:var(--panel);border:1px dashed var(--line);border-radius:var(--radius);padding:40px 24px;text-align:center;color:var(--dim);}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+  .card h3{margin:0 0 10px;font-size:14px;color:var(--amber);}
+
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;z-index:50;}
+  .overlay.show{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;max-width:440px;padding:20px;}
+  .modal h3{margin:0 0 14px;font-size:15px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+
+  .pill{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;}
+  .pill.admin{background:rgba(224,168,56,.15);color:var(--amber);}
+  .pill.member{background:var(--panel2);color:var(--dim);}
 </style>
 </head>
 <body>
 
 <div id="loginScreen">
   <div class="login-box">
-    <h1>MI Inventory <span>Flow</span></h1>
+    <h1>Black Fox <span>ERP</span></h1>
     <div class="sub">Sign in to continue</div>
     <div class="field"><label>Email</label><input id="loginEmail" type="email"></div>
     <div class="field"><label>Password</label><input id="loginPassword" type="password"></div>
     <div class="err" id="loginErr"></div>
-    <button class="primary" onclick="submitLogin()">Sign In</button>
+    <button class="primary" style="width:100%;" onclick="submitLogin()">Sign In</button>
   </div>
 </div>
 
-<div id="app">
-  <header>
-    <h1>MI Inventory <span>Flow</span></h1>
-    <div class="who">Signed in as <b id="whoName"></b> &nbsp; <button class="ghost" onclick="logout()">Log out</button></div>
-  </header>
-  <div class="empty-state">
-    <h2>Clean slate</h2>
-    <div>Database and app have been reset. Tell Claude what to build first.</div>
+<div id="shell">
+  <nav id="sidebar">
+    <div class="sb-title">Black Fox <span>ERP</span></div>
+    <div id="sidebarItems"></div>
+  </nav>
+  <div id="mainContent">
+    <div id="app">
+      <header class="topbar">
+        <h1 id="pageTitle">Non Cannabis Inventory</h1>
+        <div class="who">Signed in as <b id="whoName"></b> <button class="ghost" onclick="logout()">Log out</button></div>
+      </header>
+
+      <!-- ---------- ADJUSTMENT ---------- -->
+      <div id="adjustmentView" style="display:none;">
+        <div class="card">
+          <h3>Make an Adjustment</h3>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <div class="field" style="flex:1;min-width:180px;"><label>SKU</label><select id="adjSku" onchange="onAdjSkuChange()"></select></div>
+            <div class="field" style="flex:1;min-width:180px;"><label>Flavor</label><select id="adjFlavor" onchange="onAdjCellChange()"></select></div>
+            <div class="field" style="flex:1;min-width:180px;"><label>Column</label><select id="adjColumn" onchange="onAdjCellChange()"></select></div>
+          </div>
+          <div class="hint" id="adjCurrentQty" style="margin-bottom:10px;"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <div class="field" style="flex:1;min-width:140px;"><label>Increase or Decrease</label><select id="adjType"><option value="increase">Increase</option><option value="decrease">Decrease</option></select></div>
+            <div class="field" style="flex:1;min-width:140px;"><label>Amount</label><input id="adjAmount" type="number" min="0" step="1"></div>
+          </div>
+          <div class="field"><label>Reason</label><input id="adjReason" placeholder="e.g. Physical count correction"></div>
+          <div class="err" id="adjErr"></div>
+          <button class="primary" onclick="submitAdjustment()">Submit Adjustment</button>
+        </div>
+        <div class="card">
+          <h3>Recent Adjustments</h3>
+          <div id="adjLogList"></div>
+        </div>
+      </div>
+
+      <!-- ---------- FULL VIEW ---------- -->
+      <div id="fullViewView" style="display:none;">
+        <div class="toolbar-row">
+          <select id="fvSku" onchange="renderFullView()"></select>
+        </div>
+        <div id="fullViewTableWrap"></div>
+      </div>
+
+      <!-- ---------- SETTINGS: NON-CANNABIS ITEM (SKU builder) ---------- -->
+      <div id="ncItemBuilderView" style="display:none;">
+        <div class="toolbar-row">
+          <select id="ncbSku" onchange="renderSkuBuilder()"></select>
+          <button class="ghost" onclick="openCreateSku()">+ Create SKU</button>
+        </div>
+        <div id="skuBuilderBody"></div>
+      </div>
+
+      <!-- ---------- SETTINGS: TEAM & ACCESS ---------- -->
+      <div id="teamAccessView" style="display:none;">
+        <table class="data">
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
+          <tbody id="teamBody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
+
+<div class="overlay" id="modalCreateSku"><div class="modal">
+  <h3>Create SKU</h3>
+  <div class="field"><label>SKU Name</label><input id="skuName" placeholder="e.g. 2G AIO Disposable"></div>
+  <div class="err" id="skuErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateSku')">Cancel</button><button class="primary" onclick="submitCreateSku()">Create</button></div>
+</div></div>
+
+<div class="overlay" id="modalAddColumn"><div class="modal">
+  <h3>Add Column</h3>
+  <div class="hint" style="margin-bottom:10px;">e.g. Hardware, Inserts, Packaging, Display, Master Cases — name it whatever you need.</div>
+  <div class="field"><label>Column Name</label><input id="colName"></div>
+  <div class="err" id="colErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAddColumn')">Cancel</button><button class="primary" onclick="submitAddColumn()">Add Column</button></div>
+</div></div>
+
+<div class="overlay" id="modalAddFlavor"><div class="modal">
+  <h3>Add Flavor</h3>
+  <div class="field"><label>Flavor Name</label><input id="flvName"></div>
+  <div class="err" id="flvErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAddFlavor')">Cancel</button><button class="primary" onclick="submitAddFlavor()">Add Flavor</button></div>
+</div></div>
 
 <script>
 const SUPABASE_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
@@ -71,6 +182,22 @@ const SUPABASE_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let session = null;
+let currentSection = 'fullview';
+
+const SIDEBAR_SECTIONS = [
+  {id:'nc_inventory', label:'Non Cannabis Inventory', icon:'📦', children:[
+    {id:'adjustment', label:'Adjustment', built:true},
+    {id:'fullview', label:'Non Cannabis Full View', built:true}
+  ]},
+  {id:'settings', label:'Settings', icon:'⚙️', children:[
+    {id:'team_access', label:'Team & Access', built:true},
+    {id:'nc_item', label:'Non-Cannabis Item', built:true}
+  ]}
+];
+
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 
 function loadSession(){
   try{ const raw = localStorage.getItem('mi_session'); if(raw) session = JSON.parse(raw); }catch(e){ session=null; }
@@ -90,13 +217,231 @@ async function submitLogin(){
 function logout(){
   session = null;
   localStorage.removeItem('mi_session');
-  document.getElementById('app').style.display='none';
+  document.getElementById('shell').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
 }
 function enterApp(){
   document.getElementById('loginScreen').style.display='none';
-  document.getElementById('app').style.display='block';
+  document.getElementById('shell').style.display='flex';
   document.getElementById('whoName').textContent = session.name;
+  renderSidebar();
+  switchSection('fullview');
+}
+
+let expandedSidebar = {nc_inventory:true, settings:true};
+function renderSidebar(){
+  const el = document.getElementById('sidebarItems');
+  el.innerHTML = SIDEBAR_SECTIONS.map(s=>{
+    const hasActiveChild = s.children.some(c=>c.id===currentSection);
+    const isOpen = !!expandedSidebar[s.id] || hasActiveChild;
+    let block = `<div class="sb-item ${hasActiveChild?'active':''}" onclick="toggleSidebarGroup('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span style="margin-left:auto;font-size:10px;">${isOpen?'▲':'▼'}</span></div>`;
+    if(isOpen){
+      block += s.children.map(c=>`<div class="sb-item ${currentSection===c.id?'active':''}" style="padding-left:36px;" onclick="switchSection('${c.id}')">${escapeHtml(c.label)}</div>`).join('');
+    }
+    return block;
+  }).join('');
+}
+function toggleSidebarGroup(id){ expandedSidebar[id] = !expandedSidebar[id]; renderSidebar(); }
+function switchSection(id){
+  currentSection = id;
+  renderSidebar();
+  let label = id;
+  for(const s of SIDEBAR_SECTIONS){ const c = s.children.find(x=>x.id===id); if(c){ label = c.label; break; } }
+  document.getElementById('pageTitle').textContent = label;
+  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView'].forEach(v=>document.getElementById(v).style.display='none');
+  if(id==='adjustment'){ document.getElementById('adjustmentView').style.display='block'; loadAdjustmentView(); }
+  if(id==='fullview'){ document.getElementById('fullViewView').style.display='block'; loadFullView(); }
+  if(id==='nc_item'){ document.getElementById('ncItemBuilderView').style.display='block'; loadSkuBuilderView(); }
+  if(id==='team_access'){ document.getElementById('teamAccessView').style.display='block'; loadTeamAccess(); }
+}
+
+// ---------- SHARED SKU DATA ----------
+let skusData = [];
+async function fetchSkus(){
+  const { data, error } = await sb.from('mi_nc_skus').select('*').order('name');
+  if(!error) skusData = data || [];
+}
+function populateSkuSelect(selectId, includeBlank){
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = (includeBlank?'<option value="">Select a SKU</option>':'') + skusData.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+}
+
+// ---------- SETTINGS: NON-CANNABIS ITEM (SKU / column / flavor builder) ----------
+async function loadSkuBuilderView(){
+  await fetchSkus();
+  populateSkuSelect('ncbSku', true);
+  if(skusData.length>0){ document.getElementById('ncbSku').value = skusData[0].id; }
+  renderSkuBuilder();
+}
+function openCreateSku(){
+  document.getElementById('skuName').value=''; document.getElementById('skuErr').classList.remove('show');
+  openModal('modalCreateSku');
+}
+async function submitCreateSku(){
+  const errEl = document.getElementById('skuErr');
+  const name = document.getElementById('skuName').value.trim();
+  if(!name){ errEl.textContent='Enter a SKU name.'; errEl.classList.add('show'); return; }
+  const { data, error } = await sb.rpc('mi_nc_create_sku', { p_token: session.token, p_name: name, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCreateSku');
+  await fetchSkus();
+  populateSkuSelect('ncbSku', true);
+  document.getElementById('ncbSku').value = data;
+  renderSkuBuilder();
+}
+let currentBuilderColumns = [];
+let currentBuilderFlavors = [];
+async function renderSkuBuilder(){
+  const skuId = document.getElementById('ncbSku').value;
+  const body = document.getElementById('skuBuilderBody');
+  if(!skuId){ body.innerHTML = `<div class="empty-state">Create a SKU to get started.</div>`; return; }
+  const [colsR, flavR] = await Promise.all([
+    sb.from('mi_nc_columns').select('*').eq('sku_id', skuId).order('display_order'),
+    sb.from('mi_nc_flavors').select('*').eq('sku_id', skuId).order('name')
+  ]);
+  currentBuilderColumns = colsR.data || [];
+  currentBuilderFlavors = flavR.data || [];
+  body.innerHTML = `
+    <div class="card">
+      <h3>Columns</h3>
+      <div class="hint" style="margin-bottom:10px;">Component types for this SKU — name them however you need (Hardware, Inserts, Packaging, Display, Master Cases, etc.)</div>
+      ${currentBuilderColumns.length===0 ? '<div class="hint">No columns yet.</div>' : currentBuilderColumns.map(c=>`<div style="padding:6px 0;border-bottom:1px solid var(--line);">${escapeHtml(c.column_name)}</div>`).join('')}
+      <button class="ghost small" style="margin-top:10px;" onclick="openAddColumn('${skuId}')">+ Add Column</button>
+    </div>
+    <div class="card">
+      <h3>Flavors</h3>
+      ${currentBuilderFlavors.length===0 ? '<div class="hint">No flavors yet.</div>' : currentBuilderFlavors.map(f=>`<div style="padding:6px 0;border-bottom:1px solid var(--line);">${escapeHtml(f.name)}</div>`).join('')}
+      <button class="ghost small" style="margin-top:10px;" onclick="openAddFlavor('${skuId}')">+ Add Flavor</button>
+    </div>
+  `;
+}
+let addColumnSkuId = null;
+function openAddColumn(skuId){ addColumnSkuId = skuId; document.getElementById('colName').value=''; document.getElementById('colErr').classList.remove('show'); openModal('modalAddColumn'); }
+async function submitAddColumn(){
+  const errEl = document.getElementById('colErr');
+  const name = document.getElementById('colName').value.trim();
+  if(!name){ errEl.textContent='Enter a column name.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_nc_add_column', { p_token: session.token, p_sku_id: addColumnSkuId, p_column_name: name, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalAddColumn');
+  renderSkuBuilder();
+}
+let addFlavorSkuId = null;
+function openAddFlavor(skuId){ addFlavorSkuId = skuId; document.getElementById('flvName').value=''; document.getElementById('flvErr').classList.remove('show'); openModal('modalAddFlavor'); }
+async function submitAddFlavor(){
+  const errEl = document.getElementById('flvErr');
+  const name = document.getElementById('flvName').value.trim();
+  if(!name){ errEl.textContent='Enter a flavor name.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_nc_add_flavor', { p_token: session.token, p_sku_id: addFlavorSkuId, p_flavor_name: name, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalAddFlavor');
+  renderSkuBuilder();
+}
+
+// ---------- FULL VIEW (spreadsheet) ----------
+async function loadFullView(){
+  await fetchSkus();
+  populateSkuSelect('fvSku', false);
+  renderFullView();
+}
+async function renderFullView(){
+  const skuId = document.getElementById('fvSku').value;
+  const wrap = document.getElementById('fullViewTableWrap');
+  if(!skuId){ wrap.innerHTML = `<div class="empty-state">No SKUs yet. Create one under Settings → Non-Cannabis Item.</div>`; return; }
+  const [colsR, flavR, invR] = await Promise.all([
+    sb.from('mi_nc_columns').select('*').eq('sku_id', skuId).order('display_order'),
+    sb.from('mi_nc_flavors').select('*').eq('sku_id', skuId).order('name'),
+    sb.from('mi_nc_inventory').select('*').eq('sku_id', skuId)
+  ]);
+  const cols = colsR.data || []; const flavors = flavR.data || []; const inv = invR.data || [];
+  if(flavors.length===0 || cols.length===0){
+    wrap.innerHTML = `<div class="empty-state">This SKU needs at least one column and one flavor — add them under Settings → Non-Cannabis Item.</div>`;
+    return;
+  }
+  const cellMap = {};
+  inv.forEach(c=> cellMap[c.flavor_id+'::'+c.column_id] = c.quantity);
+  wrap.innerHTML = `<table class="data"><thead><tr><th>Flavor</th>${cols.map(c=>`<th>${escapeHtml(c.column_name)}</th>`).join('')}</tr></thead>
+    <tbody>${flavors.map(f=>`<tr><td style="font-weight:600;">${escapeHtml(f.name)}</td>${cols.map(c=>{
+      const q = cellMap[f.id+'::'+c.id]||0;
+      return `<td class="${q===0?'qty-zero':''}">${q}</td>`;
+    }).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+// ---------- ADJUSTMENT ----------
+async function loadAdjustmentView(){
+  await fetchSkus();
+  populateSkuSelect('adjSku', false);
+  if(skusData.length>0) await onAdjSkuChange();
+  await loadAdjustmentLog();
+}
+async function onAdjSkuChange(){
+  const skuId = document.getElementById('adjSku').value;
+  if(!skuId){ document.getElementById('adjFlavor').innerHTML=''; document.getElementById('adjColumn').innerHTML=''; return; }
+  const [flavR, colsR] = await Promise.all([
+    sb.from('mi_nc_flavors').select('*').eq('sku_id', skuId).order('name'),
+    sb.from('mi_nc_columns').select('*').eq('sku_id', skuId).order('display_order')
+  ]);
+  document.getElementById('adjFlavor').innerHTML = (flavR.data||[]).map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('') || '<option value="">No flavors yet</option>';
+  document.getElementById('adjColumn').innerHTML = (colsR.data||[]).map(c=>`<option value="${c.id}">${escapeHtml(c.column_name)}</option>`).join('') || '<option value="">No columns yet</option>';
+  onAdjCellChange();
+}
+async function onAdjCellChange(){
+  const flavorId = document.getElementById('adjFlavor').value;
+  const columnId = document.getElementById('adjColumn').value;
+  const hint = document.getElementById('adjCurrentQty');
+  if(!flavorId || !columnId){ hint.textContent=''; return; }
+  const { data } = await sb.from('mi_nc_inventory').select('quantity').eq('flavor_id', flavorId).eq('column_id', columnId).maybeSingle();
+  hint.textContent = `Current quantity: ${data ? data.quantity : 0}`;
+}
+async function submitAdjustment(){
+  const errEl = document.getElementById('adjErr');
+  const skuId = document.getElementById('adjSku').value;
+  const flavorId = document.getElementById('adjFlavor').value;
+  const columnId = document.getElementById('adjColumn').value;
+  const type = document.getElementById('adjType').value;
+  const amount = parseFloat(document.getElementById('adjAmount').value);
+  const reason = document.getElementById('adjReason').value.trim();
+  if(!skuId || !flavorId || !columnId){ errEl.textContent='Choose SKU, Flavor, and Column.'; errEl.classList.add('show'); return; }
+  if(!amount || amount<=0){ errEl.textContent='Enter an amount greater than 0.'; errEl.classList.add('show'); return; }
+  if(!reason){ errEl.textContent='Enter a reason.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_nc_adjust', { p_token: session.token, p_sku_id: skuId, p_flavor_id: flavorId, p_column_id: columnId, p_type: type, p_amount: amount, p_reason: reason, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  document.getElementById('adjAmount').value=''; document.getElementById('adjReason').value='';
+  await onAdjCellChange();
+  await loadAdjustmentLog();
+}
+async function loadAdjustmentLog(){
+  const { data, error } = await sb.from('mi_nc_adjustments').select('*').order('adjusted_at',{ascending:false}).limit(30);
+  const el = document.getElementById('adjLogList');
+  if(error){ el.innerHTML = `<div class="hint">Could not load log.</div>`; return; }
+  if(!data || data.length===0){ el.innerHTML = `<div class="hint">No adjustments yet.</div>`; return; }
+  el.innerHTML = data.map(a=>`<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px;">
+    <b style="color:var(--amber);">${escapeHtml(a.adjusted_by||'Unknown')}</b> ${a.adjustment_type==='increase'?'increased':'decreased'} <b>${escapeHtml(a.sku_name_snapshot)}</b> — ${escapeHtml(a.flavor_name_snapshot)} / ${escapeHtml(a.column_name_snapshot)} by ${a.amount} (${a.quantity_before} → ${a.quantity_after}) — "${escapeHtml(a.reason)}"
+    <div class="hint">${new Date(a.adjusted_at).toLocaleString()}</div>
+  </div>`).join('');
+}
+
+// ---------- TEAM & ACCESS ----------
+async function loadTeamAccess(){
+  const { data, error } = await sb.rpc('mi_list_users', { p_token: session.token });
+  const body = document.getElementById('teamBody');
+  if(error){ body.innerHTML = `<tr><td colspan="4">Could not load team: ${escapeHtml(error.message)}</td></tr>`; return; }
+  if(!data || data.length===0){ body.innerHTML = `<tr><td colspan="4">No users found.</td></tr>`; return; }
+  body.innerHTML = data.map(u=>`<tr>
+    <td>${escapeHtml(u.name)}</td><td>${escapeHtml(u.email)}</td>
+    <td><span class="pill ${u.role}">${escapeHtml(u.role)}</span></td>
+    <td>${session.role==='admin' ? `<button class="ghost small" onclick="toggleUserRole('${u.id}','${u.role}')">${u.role==='admin'?'Make Member':'Make Admin'}</button>` : ''}</td>
+  </tr>`).join('');
+}
+async function toggleUserRole(userId, currentRole){
+  const newRole = currentRole==='admin' ? 'member' : 'admin';
+  const { error } = await sb.rpc('mi_update_user_role', { p_token: session.token, p_user_id: userId, p_role: newRole, p_by: session.name });
+  if(error){ alert('Could not update role: ' + error.message); return; }
+  await loadTeamAccess();
 }
 
 loadSession();
@@ -110,4 +455,3 @@ if('serviceWorker' in navigator){
 </script>
 </body>
 </html>
-
