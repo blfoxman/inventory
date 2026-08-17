@@ -171,6 +171,20 @@
           <tbody id="teamBody"></tbody>
         </table>
       </div>
+
+      <!-- ---------- SETTINGS: CANNABIS ITEMS ---------- -->
+      <div id="cannabisItemsView" style="display:none;">
+        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">← Back to Settings</button>
+        <div class="toolbar-row">
+          <input id="ciSearch" placeholder="Search by name or category" oninput="renderCannabisItemsList()">
+          <div style="flex:1;"></div>
+          <button class="primary" onclick="openCreateCannabisItem()">+ Create Item</button>
+        </div>
+        <table class="data">
+          <thead><tr><th>Item Name</th><th>Category</th><th>Unit of Measure</th><th></th></tr></thead>
+          <tbody id="ciBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -195,6 +209,26 @@
   <div class="field"><label>Flavor Name</label><input id="flvName"></div>
   <div class="err" id="flvErr"></div>
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAddFlavor')">Cancel</button><button class="primary" onclick="submitAddFlavor()">Add Flavor</button></div>
+</div></div>
+
+<div class="overlay" id="modalCannabisItem"><div class="modal">
+  <h3 id="ciModalTitle">Create Cannabis Item</h3>
+  <div class="field"><label>Item Name</label><input id="ciName"></div>
+  <div class="field"><label>Category</label><select id="ciCategory">
+    <option>Concentrate</option>
+    <option>Infused Preroll</option>
+    <option>Infused Edible</option>
+    <option>Raw Edible</option>
+    <option>Infused Flower</option>
+    <option>Vape/Cartridges</option>
+    <option>Flower/Buds</option>
+    <option>Shake/Trim</option>
+    <option>Infused Non-Edible</option>
+    <option>Raw Preroll</option>
+  </select></div>
+  <div class="field"><label>Unit of Measure</label><select id="ciUom"><option value="g">g (Grams)</option><option value="ea">ea (Each)</option></select></div>
+  <div class="err" id="ciErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCannabisItem')">Cancel</button><button class="primary" onclick="submitCannabisItem()">Save</button></div>
 </div></div>
 
 <div class="overlay" id="modalRename"><div class="modal">
@@ -223,6 +257,7 @@ const SIDEBAR_SECTIONS = [
 const SETTINGS_GRID = [
   {category:'Facility Setup', items:[
     {id:'nc_item', label:'Non-Cannabis Item', desc:'SKUs, columns, and flavors', icon:'📦', built:true},
+    {id:'cannabis_items', label:'Cannabis Items', desc:'Item name, category, unit of measure', icon:'🌿', built:true},
     {id:'settings_brands', label:'Brands', desc:'Brands'},
     {id:'settings_locations', label:'Locations', desc:'Locations'},
     {id:'strains', label:'Strains', desc:'Strains'},
@@ -292,7 +327,7 @@ function enterApp(){
 }
 
 let expandedSidebar = {nc_inventory:true, settings:true};
-const SETTINGS_SUBVIEWS = ['team_access','nc_item'];
+const SETTINGS_SUBVIEWS = ['team_access','nc_item','cannabis_items'];
 function renderSidebar(){
   const el = document.getElementById('sidebarItems');
   el.innerHTML = SIDEBAR_SECTIONS.map(s=>{
@@ -317,13 +352,81 @@ function switchSection(id){
   for(const s of SIDEBAR_SECTIONS){ if(s.children){ const c = s.children.find(x=>x.id===id); if(c){ label = c.label; break; } } }
   if(id==='team_access') label = 'Team & Access';
   if(id==='nc_item') label = 'Non-Cannabis Item';
+  if(id==='cannabis_items') label = 'Cannabis Items';
   document.getElementById('pageTitle').textContent = label;
-  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView'].forEach(v=>document.getElementById(v).style.display='none');
+  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView','cannabisItemsView'].forEach(v=>document.getElementById(v).style.display='none');
   if(id==='adjustment'){ document.getElementById('adjustmentView').style.display='block'; loadAdjustmentView(); }
   if(id==='fullview'){ document.getElementById('fullViewView').style.display='block'; loadFullView(); }
   if(id==='settings'){ document.getElementById('settingsView').style.display='block'; renderSettingsGrid(); }
   if(id==='nc_item'){ document.getElementById('ncItemBuilderView').style.display='block'; loadSkuBuilderView(); }
   if(id==='team_access'){ document.getElementById('teamAccessView').style.display='block'; loadTeamAccess(); }
+  if(id==='cannabis_items'){ document.getElementById('cannabisItemsView').style.display='block'; loadCannabisItems(); }
+}
+
+// ---------- SETTINGS: CANNABIS ITEMS ----------
+let cannabisItemsData = [];
+let editingCannabisItemId = null;
+function openCreateCannabisItem(){
+  editingCannabisItemId = null;
+  document.getElementById('ciModalTitle').textContent = 'Create Cannabis Item';
+  document.getElementById('ciName').value=''; document.getElementById('ciCategory').selectedIndex = 0; document.getElementById('ciUom').value='g';
+  document.getElementById('ciErr').classList.remove('show');
+  openModal('modalCannabisItem');
+}
+function openEditCannabisItem(id){
+  const item = cannabisItemsData.find(i=>i.id===id);
+  if(!item) return;
+  editingCannabisItemId = id;
+  document.getElementById('ciModalTitle').textContent = 'Edit Cannabis Item';
+  document.getElementById('ciName').value = item.item_name;
+  document.getElementById('ciCategory').value = item.category;
+  document.getElementById('ciUom').value = item.unit_of_measure;
+  document.getElementById('ciErr').classList.remove('show');
+  openModal('modalCannabisItem');
+}
+async function submitCannabisItem(){
+  const errEl = document.getElementById('ciErr');
+  const name = document.getElementById('ciName').value.trim();
+  const category = document.getElementById('ciCategory').value;
+  const uom = document.getElementById('ciUom').value;
+  if(!name){ errEl.textContent='Enter an item name.'; errEl.classList.add('show'); return; }
+  const rpc = editingCannabisItemId ? 'mi_update_cannabis_item' : 'mi_create_cannabis_item';
+  const params = editingCannabisItemId
+    ? { p_token: session.token, p_id: editingCannabisItemId, p_item_name: name, p_category: category, p_uom: uom, p_by: session.name }
+    : { p_token: session.token, p_item_name: name, p_category: category, p_uom: uom, p_by: session.name };
+  const { error } = await sb.rpc(rpc, params);
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCannabisItem');
+  await loadCannabisItems();
+}
+async function deleteCannabisItem(id){
+  if(!confirm('Delete this cannabis item? This cannot be undone.')) return;
+  const { error } = await sb.rpc('mi_delete_cannabis_item', { p_token: session.token, p_id: id, p_by: session.name });
+  if(error){ alert('Could not delete: ' + error.message); return; }
+  await loadCannabisItems();
+}
+async function loadCannabisItems(){
+  const { data, error } = await sb.from('mi_cannabis_items').select('*').order('created_at',{ascending:false});
+  if(error){ console.error(error); return; }
+  cannabisItemsData = data || [];
+  renderCannabisItemsList();
+}
+function renderCannabisItemsList(){
+  const q = (document.getElementById('ciSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('ciBody');
+  let rows = cannabisItemsData;
+  if(q) rows = rows.filter(i=> (i.item_name||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--dim);">No cannabis items yet. Click "+ Create Item" to add one.</td></tr>`; return; }
+  body.innerHTML = rows.map(i=>`<tr>
+    <td style="font-weight:600;">${escapeHtml(i.item_name)}</td>
+    <td>${escapeHtml(i.category)}</td>
+    <td>${escapeHtml(i.unit_of_measure)}</td>
+    <td>
+      <button class="ghost small" onclick="openEditCannabisItem('${i.id}')">Edit</button>
+      ${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteCannabisItem('${i.id}')">Delete</button>` : ''}
+    </td>
+  </tr>`).join('');
 }
 
 // ---------- SETTINGS (card grid) ----------
