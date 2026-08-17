@@ -86,6 +86,13 @@
   .settings-card .sc-icon{font-size:18px;}
   .settings-card .sc-title{font-weight:700;font-size:13.5px;margin-bottom:2px;}
   .settings-card .sc-desc{font-size:12px;color:var(--dim);}
+
+  .ac-wrap{position:relative;}
+  .ac-input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13.5px;font-family:inherit;}
+  .ac-list{position:absolute;left:0;right:0;top:calc(100% + 2px);z-index:80;background:var(--panel2);border:1px solid var(--line);border-radius:8px;max-height:220px;overflow-y:auto;display:none;box-shadow:0 8px 20px rgba(0,0,0,.4);}
+  .ac-option{padding:9px 10px;font-size:13px;cursor:pointer;}
+  .ac-option:hover, .ac-option.hi{background:var(--panel);color:var(--amber);}
+  .ac-empty{padding:9px 10px;font-size:12.5px;color:var(--dim);}
 </style>
 </head>
 <body>
@@ -149,7 +156,7 @@
       <div id="cannabisAdjustmentView" style="display:none;">
         <div class="card">
           <h3>Make an Adjustment</h3>
-          <div class="field"><label>Item</label><select id="caItem" onchange="onCaItemChange()"></select></div>
+          <div class="field"><label>Item</label><div id="caItemAc"></div></div>
           <div class="hint" id="caCurrentQty" style="margin-bottom:10px;"></div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <div class="field" style="flex:1;min-width:140px;"><label>Increase or Decrease</label><select id="caType"><option value="increase">Increase</option><option value="decrease">Decrease</option></select></div>
@@ -272,7 +279,7 @@
   <div class="card">
     <h3>Overview</h3>
     <div class="field"><label>Production Batch Name (Optional)</label><input id="pbName" placeholder="Auto-generated if left blank"></div>
-    <div class="field"><label>Item Being Produced</label><select id="pbItem"></select></div>
+    <div class="field"><label>Item Being Produced</label><div id="pbItemAc"></div></div>
     <div style="display:flex;gap:10px;">
       <div class="field" style="flex:1;"><label>Number of Packages</label><input id="pbNumPackages" type="number" value="1" min="1" onchange="syncPackageRowCount()"></div>
       <div class="field" style="flex:1;"><label>Estimated Quantity</label><input id="pbEstQty" type="number"></div>
@@ -287,12 +294,11 @@
 
   <div class="card">
     <h3>Bill of Materials</h3>
+    <div class="hint" style="margin-bottom:10px;" id="pbBomSourceNote">Choose an item above to load its Bill of Materials.</div>
     <div class="hint" style="margin-bottom:8px;">Cannabis Materials</div>
     <div id="pbCannabisRows"></div>
-    <button class="ghost small" onclick="addPbMaterialRow('cannabis')">+ Add Item</button>
     <div class="hint" style="margin:14px 0 8px;">Non-Cannabis Materials</div>
     <div id="pbNonCannabisRows"></div>
-    <button class="ghost small" onclick="addPbMaterialRow('noncannabis')">+ Add Item</button>
   </div>
 
   <div class="card">
@@ -313,7 +319,7 @@
 
   <div class="card">
     <h3>Output Items</h3>
-    <div class="field"><label>Item</label><select id="bomOutputItem"></select></div>
+    <div class="field"><label>Item</label><div id="bomOutputItemAc"></div></div>
   </div>
 
   <div class="card">
@@ -428,7 +434,47 @@ const SETTINGS_GRID = [
   ]}
 ];
 
-function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ---------- REUSABLE AUTOCOMPLETE (type-to-search instead of a plain dropdown) ----------
+// items: array of {value, label}. onChange(value) fires whenever a selection is made or cleared.
+function makeAutocomplete(containerId, items, onChange, initialValue, placeholder){
+  const container = document.getElementById(containerId);
+  container.innerHTML = `<div class="ac-wrap"><input class="ac-input" autocomplete="off" placeholder="${escapeHtml(placeholder||'Search for an item')}"><div class="ac-list"></div></div>`;
+  const input = container.querySelector('.ac-input');
+  const list = container.querySelector('.ac-list');
+  const state = { items: items||[], value: '' };
+
+  function renderList(filterText){
+    const f = (filterText||'').toLowerCase();
+    const matches = state.items.filter(it=> it.label.toLowerCase().includes(f)).slice(0,50);
+    if(matches.length===0){ list.innerHTML = `<div class="ac-empty">No matches</div>`; list.style.display='block'; return; }
+    list.innerHTML = matches.map(it=>`<div class="ac-option" data-value="${escapeHtml(it.value)}">${escapeHtml(it.label)}</div>`).join('');
+    list.style.display='block';
+  }
+  input.addEventListener('focus', ()=>renderList(input.value));
+  input.addEventListener('input', ()=>{ state.value=''; renderList(input.value); onChange(''); });
+  input.addEventListener('blur', ()=> setTimeout(()=>{ list.style.display='none'; }, 150));
+  list.addEventListener('mousedown', (e)=>{
+    const opt = e.target.closest('.ac-option');
+    if(!opt) return;
+    const val = opt.dataset.value;
+    const item = state.items.find(it=>String(it.value)===val);
+    input.value = item ? item.label : '';
+    state.value = val;
+    list.style.display='none';
+    onChange(val);
+  });
+  if(initialValue){
+    const item = state.items.find(it=>String(it.value)===String(initialValue));
+    if(item){ input.value = item.label; state.value = item.value; }
+  }
+  return {
+    getValue: ()=> state.value,
+    setItems: (newItems)=>{ state.items = newItems; }
+  };
+}
+
 function openModal(id){ document.getElementById(id).classList.add('show'); }
 function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 
@@ -536,38 +582,30 @@ function genBatchName(){
 let pbCannabisRows = [];
 let pbNonCannabisRows = [];
 let pbPackageRows = [];
+let pbBomSource = null; // {found:bool, templateName:string}
 function renderPbMaterialRows(type){
   const rows = type==='cannabis' ? pbCannabisRows : pbNonCannabisRows;
   const containerId = type==='cannabis' ? 'pbCannabisRows' : 'pbNonCannabisRows';
-  const options = type==='cannabis' ? bomCannabisItemsCache.map(i=>i.item_name) : bomNoncannabisMaterialsCache;
   const el = document.getElementById(containerId);
+  if(!pbBomSource || !pbBomSource.found){
+    el.innerHTML = '';
+    return;
+  }
+  if(rows.length===0){
+    el.innerHTML = `<div class="hint">This template has no ${type==='cannabis'?'cannabis':'non-cannabis'} materials.</div>`;
+    return;
+  }
   el.innerHTML = rows.map((row,i)=>`
-    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;">
-      <div class="field" style="flex:2;margin-bottom:0;"><label>Item</label><select onchange="updatePbMaterialRow('${type}',${i},this.value)">
-        <option value="">Select an item</option>
-        ${options.map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
-      </select></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <div style="flex:2;font-size:13.5px;">${escapeHtml(row.itemName)}</div>
       <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updatePbMaterialRowQty('${type}',${i},this.value)"></div>
-      ${rows.length>1?`<button class="ghost small" onclick="removePbMaterialRow('${type}',${i})">✕</button>`:''}
     </div>`).join('');
-  const selects = el.querySelectorAll('select');
-  rows.forEach((row,i)=>{ if(selects[i]) selects[i].value = row.itemName || ''; });
 }
-function updatePbMaterialRow(type, i, value){ (type==='cannabis'?pbCannabisRows:pbNonCannabisRows)[i].itemName = value; }
 function updatePbMaterialRowQty(type, i, value){ (type==='cannabis'?pbCannabisRows:pbNonCannabisRows)[i].quantity = value; }
-function addPbMaterialRow(type){
-  if(type==='cannabis') pbCannabisRows.push({itemName:'',quantity:''}); else pbNonCannabisRows.push({itemName:'',quantity:''});
-  renderPbMaterialRows(type);
-}
-function removePbMaterialRow(type, i){
-  if(type==='cannabis') pbCannabisRows.splice(i,1); else pbNonCannabisRows.splice(i,1);
-  renderPbMaterialRows(type);
-}
 function renderPackageRows(){
   const el = document.getElementById('pbPackageRowsContainer');
   el.innerHTML = pbPackageRows.map((row,i)=>`
     <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;">
-      <div class="field" style="flex:2;margin-bottom:0;"><label>Package Tag</label><input value="${escapeHtml(row.tag)}" oninput="updatePackageRow(${i},'tag',this.value)" style="font-family:monospace;font-size:12px;"></div>
       <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updatePackageRow(${i},'quantity',this.value)"></div>
       <div class="field" style="flex:1;margin-bottom:0;"><label>Location</label><input value="${escapeHtml(row.location)}" oninput="updatePackageRow(${i},'location',this.value)"></div>
       <div class="field" style="flex:1;margin-bottom:0;"><label>Date</label><input type="date" value="${row.date}" oninput="updatePackageRow(${i},'date',this.value)"></div>
@@ -583,6 +621,31 @@ function syncPackageRowCount(){
   while(pbPackageRows.length > n) pbPackageRows.pop();
   renderPackageRows();
 }
+async function onPbItemChange(itemId){
+  const noteEl = document.getElementById('pbBomSourceNote');
+  if(!itemId){
+    pbBomSource = null; pbCannabisRows = []; pbNonCannabisRows = [];
+    noteEl.textContent = '';
+    renderPbMaterialRows('cannabis'); renderPbMaterialRows('noncannabis');
+    return;
+  }
+  const { data: templates } = await sb.from('mi_bom_templates').select('*').eq('output_item_id', itemId);
+  if(!templates || templates.length===0){
+    pbBomSource = { found:false };
+    pbCannabisRows = []; pbNonCannabisRows = [];
+    noteEl.innerHTML = `<span style="color:var(--rust);">No BOM Template found for this item — create one under Settings → Bill of Materials Templates before producing it.</span>`;
+    renderPbMaterialRows('cannabis'); renderPbMaterialRows('noncannabis');
+    return;
+  }
+  const tpl = templates[0];
+  const { data: materials } = await sb.from('mi_bom_template_materials').select('*').eq('template_id', tpl.id);
+  pbBomSource = { found:true, templateName: tpl.template_name };
+  pbCannabisRows = (materials||[]).filter(m=>m.material_type==='cannabis').map(m=>({itemName:m.item_name, quantity:m.quantity||''}));
+  pbNonCannabisRows = (materials||[]).filter(m=>m.material_type==='noncannabis').map(m=>({itemName:m.item_name, quantity:m.quantity||''}));
+  noteEl.innerHTML = `Materials from BOM Template: <b style="color:var(--amber);">${escapeHtml(tpl.template_name)}</b>`;
+  renderPbMaterialRows('cannabis'); renderPbMaterialRows('noncannabis');
+}
+let pbItemAc = null;
 async function openCreateProductionBatch(){
   document.getElementById('pbName').value = '';
   document.getElementById('pbNumPackages').value = '1';
@@ -590,20 +653,22 @@ async function openCreateProductionBatch(){
   document.getElementById('pbStartingTag').value = genTag();
   document.getElementById('pbComplianceBatch').checked=false; document.getElementById('pbRequiresTesting').checked=false;
   document.getElementById('pbErr').classList.remove('show');
+  document.getElementById('pbBomSourceNote').textContent = '';
   await fetchBomMaterialSources();
-  document.getElementById('pbItem').innerHTML = bomCannabisItemsCache.map(i=>`<option value="${i.id}" data-name="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</option>`).join('') || '<option value="">No cannabis items yet — create one first</option>';
-  pbCannabisRows = [{itemName:'',quantity:''}];
-  pbNonCannabisRows = [{itemName:'',quantity:''}];
+  pbItemAc = makeAutocomplete('pbItemAc', bomCannabisItemsCache.map(i=>({value:i.id, label:i.item_name})), onPbItemChange);
+  pbBomSource = null;
+  pbCannabisRows = []; pbNonCannabisRows = [];
   pbPackageRows = [{tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}];
   renderPbMaterialRows('cannabis'); renderPbMaterialRows('noncannabis'); renderPackageRows();
   openModal('modalCreateProductionBatch');
 }
 async function submitCreateProductionBatch(){
   const errEl = document.getElementById('pbErr');
-  const itemSel = document.getElementById('pbItem');
-  const itemId = itemSel.value;
-  const itemName = itemSel.selectedOptions[0] ? itemSel.selectedOptions[0].dataset.name : '';
+  const itemId = pbItemAc ? pbItemAc.getValue() : '';
+  const itemObj = bomCannabisItemsCache.find(i=>i.id===itemId);
+  const itemName = itemObj ? itemObj.item_name : '';
   if(!itemId){ errEl.textContent='Choose an item being produced.'; errEl.classList.add('show'); return; }
+  if(!pbBomSource || !pbBomSource.found){ errEl.textContent='No BOM Template exists for this item — create one under Settings → Bill of Materials Templates first.'; errEl.classList.add('show'); return; }
   const batch = {
     batch_name: document.getElementById('pbName').value.trim() || genBatchName(),
     item_id: itemId, item_name_snapshot: itemName,
@@ -651,22 +716,23 @@ function renderProductionBatchesList(){
 }
 
 // ---------- CANNABIS INVENTORY: ADJUSTMENT ----------
+let caItemAc = null;
 async function loadCannabisAdjustmentView(){
   const { data, error } = await sb.from('mi_cannabis_items').select('*').order('item_name');
   if(error){ console.error(error); return; }
   cannabisItemsData = data || [];
-  document.getElementById('caItem').innerHTML = cannabisItemsData.map(i=>`<option value="${i.id}">${escapeHtml(i.item_name)}</option>`).join('') || '<option value="">No cannabis items yet</option>';
+  caItemAc = makeAutocomplete('caItemAc', cannabisItemsData.map(i=>({value:i.id, label:i.item_name})), onCaItemChange);
   onCaItemChange();
   await loadCannabisAdjustmentLog();
 }
 function onCaItemChange(){
-  const itemId = document.getElementById('caItem').value;
+  const itemId = caItemAc ? caItemAc.getValue() : '';
   const item = cannabisItemsData.find(i=>i.id===itemId);
   document.getElementById('caCurrentQty').textContent = item ? `Current quantity: ${item.quantity} ${item.unit_of_measure}` : '';
 }
 async function submitCannabisAdjustment(){
   const errEl = document.getElementById('caErr');
-  const itemId = document.getElementById('caItem').value;
+  const itemId = caItemAc ? caItemAc.getValue() : '';
   const type = document.getElementById('caType').value;
   const amount = parseFloat(document.getElementById('caAmount').value);
   const reason = document.getElementById('caReason').value.trim();
@@ -787,12 +853,13 @@ async function fetchBomMaterialSources(){
     });
   });
 }
+let bomOutputItemAc = null;
 function openCreateBomTemplate(){
   document.getElementById('bomTplName').value='';
   document.getElementById('bomCostCategory').value='';
   document.getElementById('bomTplErr').classList.remove('show');
   fetchBomMaterialSources().then(()=>{
-    document.getElementById('bomOutputItem').innerHTML = bomCannabisItemsCache.map(i=>`<option value="${i.id}" data-name="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</option>`).join('') || '<option value="">No cannabis items yet</option>';
+    bomOutputItemAc = makeAutocomplete('bomOutputItemAc', bomCannabisItemsCache.map(i=>({value:i.id, label:i.item_name})), ()=>{});
     bomCannabisRows = [{itemName:'',quantity:''}];
     bomNonCannabisRows = [{itemName:'',quantity:''}];
     renderBomMaterialRows('cannabis');
@@ -807,15 +874,13 @@ function renderBomMaterialRows(type){
   const el = document.getElementById(containerId);
   el.innerHTML = rows.map((row,i)=>`
     <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;">
-      <div class="field" style="flex:2;margin-bottom:0;"><label>Item</label><select onchange="updateBomMaterialRow('${type}',${i},this.value)">
-        <option value="">Search for an item</option>
-        ${options.map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
-      </select></div>
+      <div class="field" style="flex:2;margin-bottom:0;"><label>Item</label><div id="${containerId}Ac${i}"></div></div>
       <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updateBomMaterialRowQty('${type}',${i},this.value)"></div>
       ${rows.length>1?`<button class="ghost small" onclick="removeBomMaterialRow('${type}',${i})">✕</button>`:''}
     </div>`).join('');
-  const selects = el.querySelectorAll('select');
-  rows.forEach((row,i)=>{ if(selects[i]) selects[i].value = row.itemName || ''; });
+  rows.forEach((row,i)=>{
+    makeAutocomplete(`${containerId}Ac${i}`, options.map(o=>({value:o, label:o})), (val)=>updateBomMaterialRow(type,i,val), row.itemName);
+  });
 }
 function updateBomMaterialRow(type, i, value){ (type==='cannabis'?bomCannabisRows:bomNonCannabisRows)[i].itemName = value; }
 function updateBomMaterialRowQty(type, i, value){ (type==='cannabis'?bomCannabisRows:bomNonCannabisRows)[i].quantity = value; }
@@ -831,9 +896,9 @@ async function submitBomTemplate(){
   const errEl = document.getElementById('bomTplErr');
   const name = document.getElementById('bomTplName').value.trim();
   if(!name){ errEl.textContent='Enter a template name.'; errEl.classList.add('show'); return; }
-  const outputSel = document.getElementById('bomOutputItem');
-  const outputId = outputSel.value;
-  const outputName = outputSel.selectedOptions[0] ? outputSel.selectedOptions[0].dataset.name : '';
+  const outputId = bomOutputItemAc ? bomOutputItemAc.getValue() : '';
+  const outputItem = bomCannabisItemsCache.find(i=>i.id===outputId);
+  const outputName = outputItem ? outputItem.item_name : '';
   const cannabisMaterials = bomCannabisRows.filter(r=>r.itemName).map(r=>({item_name:r.itemName, quantity:r.quantity}));
   const noncannabisMaterials = bomNonCannabisRows.filter(r=>r.itemName).map(r=>({item_name:r.itemName, quantity:r.quantity}));
   const { error } = await sb.rpc('mi_create_bom_template', {
