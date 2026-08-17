@@ -75,6 +75,17 @@
   .pill{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;}
   .pill.admin{background:rgba(224,168,56,.15);color:var(--amber);}
   .pill.member{background:var(--panel2);color:var(--dim);}
+
+  .settings-category{font-size:14px;font-weight:700;margin:20px 0 10px;}
+  .settings-category:first-child{margin-top:0;}
+  .settings-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+  .settings-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;display:flex;gap:10px;align-items:flex-start;cursor:pointer;}
+  .settings-card:hover{background:var(--panel2);}
+  .settings-card.disabled{opacity:.45;cursor:default;}
+  .settings-card.disabled:hover{background:var(--panel);}
+  .settings-card .sc-icon{font-size:18px;}
+  .settings-card .sc-title{font-weight:700;font-size:13.5px;margin-bottom:2px;}
+  .settings-card .sc-desc{font-size:12px;color:var(--dim);}
 </style>
 </head>
 <body>
@@ -136,6 +147,7 @@
 
       <!-- ---------- SETTINGS: NON-CANNABIS ITEM (SKU builder) ---------- -->
       <div id="ncItemBuilderView" style="display:none;">
+        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">← Back to Settings</button>
         <div class="toolbar-row">
           <select id="ncbSku" onchange="renderSkuBuilder()"></select>
           <button class="ghost" onclick="openCreateSku()">+ Create SKU</button>
@@ -143,8 +155,17 @@
         <div id="skuBuilderBody"></div>
       </div>
 
+      <!-- ---------- SETTINGS (card grid) ---------- -->
+      <div id="settingsView" style="display:none;">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+          <input id="settingsSearch" placeholder="Search for a setting" style="max-width:280px;" oninput="renderSettingsGrid()">
+        </div>
+        <div id="settingsGrid"></div>
+      </div>
+
       <!-- ---------- SETTINGS: TEAM & ACCESS ---------- -->
       <div id="teamAccessView" style="display:none;">
+        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">← Back to Settings</button>
         <table class="data">
           <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
           <tbody id="teamBody"></tbody>
@@ -196,9 +217,44 @@ const SIDEBAR_SECTIONS = [
     {id:'adjustment', label:'Adjustment', built:true},
     {id:'fullview', label:'Non Cannabis Full View', built:true}
   ]},
-  {id:'settings', label:'Settings', icon:'⚙️', children:[
-    {id:'team_access', label:'Team & Access', built:true},
-    {id:'nc_item', label:'Non-Cannabis Item', built:true}
+  {id:'settings', label:'Settings', icon:'⚙️', built:true}
+];
+
+const SETTINGS_GRID = [
+  {category:'Facility Setup', items:[
+    {id:'nc_item', label:'Non-Cannabis Item', desc:'SKUs, columns, and flavors', icon:'📦', built:true},
+    {id:'settings_brands', label:'Brands', desc:'Brands'},
+    {id:'settings_locations', label:'Locations', desc:'Locations'},
+    {id:'strains', label:'Strains', desc:'Strains'},
+    {id:'bom_templates_settings', label:'Bill of Materials Templates', desc:'Bill of Materials Templates'},
+    {id:'customers_vendors', label:'Customers & Vendors', desc:'Customers & Vendors'},
+    {id:'drivers', label:'Drivers', desc:'Drivers'},
+    {id:'vehicles', label:'Vehicles', desc:'Vehicles'}
+  ]},
+  {category:'Accounting Setup', items:[
+    {id:'aging_buckets', label:'Aging Buckets', desc:'Aging Buckets'},
+    {id:'cost_items', label:'Cost Items', desc:'Cost Items'},
+    {id:'customer_matching', label:'Customer Matching', desc:'Customer Matching'},
+    {id:'customer_segments', label:'Customer Segments', desc:'Customer Segments'},
+    {id:'default_accounts', label:'Default Accounts', desc:'Default Accounts'},
+    {id:'expense_templates', label:'Expense Templates', desc:'Expense Templates'},
+    {id:'payment_terms', label:'Payment Terms & Methods', desc:'Payment Terms & Methods'},
+    {id:'pricing_templates', label:'Pricing Templates', desc:'Pricing Templates'},
+    {id:'unit_costs', label:'Unit Costs', desc:'Unit Costs'},
+    {id:'vendor_matching', label:'Vendor Matching', desc:'Vendor Matching'}
+  ]},
+  {category:'System Configuration', items:[
+    {id:'team_access', label:'Team & Access', desc:'Users and roles', icon:'👥', built:true},
+    {id:'communication_preferences', label:'Communication Preferences', desc:'Communication Preferences'},
+    {id:'company_details', label:'Company Details', desc:'Company Details'},
+    {id:'crm_custom_fields', label:'CRM Custom Fields', desc:'CRM Custom Fields'},
+    {id:'erp_steps', label:'ERP Steps', desc:'ERP Steps'},
+    {id:'integrations', label:'Integrations', desc:'Integrations'},
+    {id:'labels', label:'Labels', desc:'Labels'},
+    {id:'life_cycle_configuration', label:'Life Cycle Configuration', desc:'Life Cycle Configuration'},
+    {id:'roles_permissions', label:'Roles & Permissions', desc:'Roles & Permissions'},
+    {id:'task_templates', label:'Task Templates', desc:'Task Templates'},
+    {id:'users', label:'Users', desc:'Users'}
   ]}
 ];
 
@@ -236,9 +292,14 @@ function enterApp(){
 }
 
 let expandedSidebar = {nc_inventory:true, settings:true};
+const SETTINGS_SUBVIEWS = ['team_access','nc_item'];
 function renderSidebar(){
   const el = document.getElementById('sidebarItems');
   el.innerHTML = SIDEBAR_SECTIONS.map(s=>{
+    if(!s.children){
+      const active = currentSection===s.id || (s.id==='settings' && SETTINGS_SUBVIEWS.includes(currentSection));
+      return `<div class="sb-item ${active?'active':''}" onclick="switchSection('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}</div>`;
+    }
     const hasActiveChild = s.children.some(c=>c.id===currentSection);
     const isOpen = !!expandedSidebar[s.id] || hasActiveChild;
     let block = `<div class="sb-item ${hasActiveChild?'active':''}" onclick="toggleSidebarGroup('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span style="margin-left:auto;font-size:10px;">${isOpen?'▲':'▼'}</span></div>`;
@@ -252,14 +313,37 @@ function toggleSidebarGroup(id){ expandedSidebar[id] = !expandedSidebar[id]; ren
 function switchSection(id){
   currentSection = id;
   renderSidebar();
-  let label = id;
-  for(const s of SIDEBAR_SECTIONS){ const c = s.children.find(x=>x.id===id); if(c){ label = c.label; break; } }
+  let label = id==='settings' ? 'Settings' : id;
+  for(const s of SIDEBAR_SECTIONS){ if(s.children){ const c = s.children.find(x=>x.id===id); if(c){ label = c.label; break; } } }
+  if(id==='team_access') label = 'Team & Access';
+  if(id==='nc_item') label = 'Non-Cannabis Item';
   document.getElementById('pageTitle').textContent = label;
-  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView'].forEach(v=>document.getElementById(v).style.display='none');
+  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView'].forEach(v=>document.getElementById(v).style.display='none');
   if(id==='adjustment'){ document.getElementById('adjustmentView').style.display='block'; loadAdjustmentView(); }
   if(id==='fullview'){ document.getElementById('fullViewView').style.display='block'; loadFullView(); }
+  if(id==='settings'){ document.getElementById('settingsView').style.display='block'; renderSettingsGrid(); }
   if(id==='nc_item'){ document.getElementById('ncItemBuilderView').style.display='block'; loadSkuBuilderView(); }
   if(id==='team_access'){ document.getElementById('teamAccessView').style.display='block'; loadTeamAccess(); }
+}
+
+// ---------- SETTINGS (card grid) ----------
+function renderSettingsGrid(){
+  const q = (document.getElementById('settingsSearch').value||'').trim().toLowerCase();
+  const el = document.getElementById('settingsGrid');
+  const iconFor = (item) => item.icon || '·';
+  el.innerHTML = SETTINGS_GRID.map(cat=>{
+    const items = cat.items.filter(i=> !q || i.label.toLowerCase().includes(q));
+    if(items.length===0) return '';
+    return `<div class="settings-category">${escapeHtml(cat.category)}</div>
+      <div class="settings-grid">${items.map(i=>`
+        <div class="settings-card ${i.built?'':'disabled'}" onclick="${i.built?`switchSection('${i.id}')`:''}">
+          <div class="sc-icon">${iconFor(i)}</div>
+          <div>
+            <div class="sc-title">${escapeHtml(i.label)}</div>
+            <div class="sc-desc">${escapeHtml(i.desc)}</div>
+          </div>
+        </div>`).join('')}</div>`;
+  }).join('') || `<div class="empty-state">No settings match "${escapeHtml(q)}".</div>`;
 }
 
 // ---------- SHARED SKU DATA ----------
