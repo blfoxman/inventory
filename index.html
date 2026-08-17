@@ -176,6 +176,13 @@
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAddFlavor')">Cancel</button><button class="primary" onclick="submitAddFlavor()">Add Flavor</button></div>
 </div></div>
 
+<div class="overlay" id="modalRename"><div class="modal">
+  <h3 id="renameTitle">Rename</h3>
+  <div class="field"><label>Name</label><input id="renameValue"></div>
+  <div class="err" id="renameErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalRename')">Cancel</button><button class="primary" onclick="submitRename()">Save</button></div>
+</div></div>
+
 <script>
 const SUPABASE_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
@@ -296,6 +303,7 @@ async function renderSkuBuilder(){
   const skuId = document.getElementById('ncbSku').value;
   const body = document.getElementById('skuBuilderBody');
   if(!skuId){ body.innerHTML = `<div class="empty-state">Create a SKU to get started.</div>`; return; }
+  const sku = skusData.find(s=>s.id===skuId);
   const [colsR, flavR] = await Promise.all([
     sb.from('mi_nc_columns').select('*').eq('sku_id', skuId).order('display_order'),
     sb.from('mi_nc_flavors').select('*').eq('sku_id', skuId).order('name')
@@ -304,6 +312,16 @@ async function renderSkuBuilder(){
   currentBuilderFlavors = flavR.data || [];
   body.innerHTML = `
     <div class="card">
+      <h3>SKU</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-weight:600;">${escapeHtml(sku ? sku.name : '')}</div>
+        <div style="display:flex;gap:8px;">
+          <button class="ghost small" onclick="openRenameSku('${skuId}')">Rename</button>
+          ${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteSku('${skuId}')">Delete SKU</button>` : ''}
+        </div>
+      </div>
+    </div>
+    <div class="card">
       <h3>Columns</h3>
       <div class="hint" style="margin-bottom:10px;">Component types for this SKU — name them however you need (Hardware, Inserts, Packaging, Display, Master Cases, etc.)</div>
       ${currentBuilderColumns.length===0 ? '<div class="hint">No columns yet.</div>' : currentBuilderColumns.map(c=>`<div style="padding:6px 0;border-bottom:1px solid var(--line);">${escapeHtml(c.column_name)}</div>`).join('')}
@@ -311,7 +329,14 @@ async function renderSkuBuilder(){
     </div>
     <div class="card">
       <h3>Flavors</h3>
-      ${currentBuilderFlavors.length===0 ? '<div class="hint">No flavors yet.</div>' : currentBuilderFlavors.map(f=>`<div style="padding:6px 0;border-bottom:1px solid var(--line);">${escapeHtml(f.name)}</div>`).join('')}
+      ${currentBuilderFlavors.length===0 ? '<div class="hint">No flavors yet.</div>' : currentBuilderFlavors.map(f=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);">
+          <span>${escapeHtml(f.name)}</span>
+          <div style="display:flex;gap:6px;">
+            <button class="ghost small" onclick="openRenameFlavor('${f.id}','${escapeHtml(f.name)}')">Rename</button>
+            ${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteFlavor('${f.id}')">Delete</button>` : ''}
+          </div>
+        </div>`).join('')}
       <button class="ghost small" style="margin-top:10px;" onclick="openAddFlavor('${skuId}')">+ Add Flavor</button>
     </div>
   `;
@@ -338,6 +363,52 @@ async function submitAddFlavor(){
   if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
   closeModal('modalAddFlavor');
+  renderSkuBuilder();
+}
+
+// ---------- RENAME / DELETE (SKUs and Flavors) ----------
+let renameTarget = null; // {type:'sku'|'flavor', id}
+function openRenameSku(skuId){
+  const sku = skusData.find(s=>s.id===skuId);
+  renameTarget = { type:'sku', id: skuId };
+  document.getElementById('renameTitle').textContent = 'Rename SKU';
+  document.getElementById('renameValue').value = sku ? sku.name : '';
+  document.getElementById('renameErr').classList.remove('show');
+  openModal('modalRename');
+}
+function openRenameFlavor(flavorId, currentName){
+  renameTarget = { type:'flavor', id: flavorId };
+  document.getElementById('renameTitle').textContent = 'Rename Flavor';
+  document.getElementById('renameValue').value = currentName;
+  document.getElementById('renameErr').classList.remove('show');
+  openModal('modalRename');
+}
+async function submitRename(){
+  const errEl = document.getElementById('renameErr');
+  const name = document.getElementById('renameValue').value.trim();
+  if(!name){ errEl.textContent='Enter a name.'; errEl.classList.add('show'); return; }
+  const rpc = renameTarget.type==='sku' ? 'mi_nc_update_sku' : 'mi_nc_update_flavor';
+  const idParam = renameTarget.type==='sku' ? { p_sku_id: renameTarget.id } : { p_flavor_id: renameTarget.id };
+  const { error } = await sb.rpc(rpc, { p_token: session.token, ...idParam, p_name: name, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalRename');
+  if(renameTarget.type==='sku'){ await fetchSkus(); populateSkuSelect('ncbSku', true); document.getElementById('ncbSku').value = renameTarget.id; }
+  renderSkuBuilder();
+}
+async function deleteSku(skuId){
+  if(!confirm('Delete this SKU? This permanently removes all its columns, flavors, and inventory data. This cannot be undone.')) return;
+  const { error } = await sb.rpc('mi_nc_delete_sku', { p_token: session.token, p_sku_id: skuId, p_by: session.name });
+  if(error){ alert('Could not delete: ' + error.message); return; }
+  await fetchSkus();
+  populateSkuSelect('ncbSku', true);
+  if(skusData.length>0) document.getElementById('ncbSku').value = skusData[0].id;
+  renderSkuBuilder();
+}
+async function deleteFlavor(flavorId){
+  if(!confirm('Delete this flavor? This permanently removes its inventory data for every column. This cannot be undone.')) return;
+  const { error } = await sb.rpc('mi_nc_delete_flavor', { p_token: session.token, p_flavor_id: flavorId, p_by: session.name });
+  if(error){ alert('Could not delete: ' + error.message); return; }
   renderSkuBuilder();
 }
 
