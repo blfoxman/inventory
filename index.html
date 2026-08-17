@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Black Fox ERP</title>
+<title>MI Inventory Flow</title>
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#17140f">
 <link rel="apple-touch-icon" href="./icon-192.png">
@@ -13,11 +13,10 @@
 <style>
   :root{
     --bg:#17140f; --panel:#211d17; --panel2:#2a251d; --line:#3a3226;
-    --text:#ede6d8; --dim:#a89a82; --amber:#e0a838; --amber-dim:#8a6a26; --rust:#c1573f; --sage:#8ea377; --radius:10px;
+    --text:#ede6d8; --dim:#a89a82; --amber:#e0a838; --amber-dim:#8a6a26; --rust:#c1573f; --radius:10px;
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
-
   #loginScreen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;}
   .login-box{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;max-width:360px;padding:28px;}
   .login-box h1{margin:0 0 4px;font-size:20px;font-weight:700;}
@@ -25,208 +24,46 @@
   .sub{color:var(--dim);font-size:12.5px;margin-bottom:20px;}
   .field{margin-bottom:12px;}
   .field label{display:block;font-size:11.5px;color:var(--dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;}
-  .field input,.field select,.field textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13.5px;font-family:inherit;}
-  button.primary{font-size:13px;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600;border:1px solid var(--amber);background:var(--amber);color:#1a1509;}
+  .field input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13.5px;font-family:inherit;}
+  button.primary{width:100%;margin-top:8px;font-size:13px;border-radius:8px;padding:10px 14px;cursor:pointer;font-weight:600;border:1px solid var(--amber);background:var(--amber);color:#1a1509;}
   button.primary:hover{filter:brightness(1.08);}
-  button.ghost{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 12px;font-size:12.5px;cursor:pointer;}
-  button.ghost:hover{background:var(--panel2);}
-  button.small{padding:5px 9px;font-size:12px;}
   .err{color:var(--rust);font-size:12px;margin-top:6px;display:none;}
   .err.show{display:block;}
-  .hint{font-size:11.5px;color:var(--dim);}
 
-  #shell{display:none;min-height:100vh;}
-  #sidebar{width:220px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);padding:14px 0;}
-  #sidebar .sb-title{padding:0 18px 14px;font-size:15px;font-weight:700;border-bottom:1px solid var(--line);margin-bottom:8px;}
-  #sidebar .sb-title span{color:var(--amber);}
-  .sb-item{display:flex;align-items:center;gap:10px;padding:9px 18px;font-size:13px;font-weight:600;color:var(--dim);cursor:pointer;border-left:3px solid transparent;}
-  .sb-item:hover{background:var(--panel2);color:var(--text);}
-  .sb-item.active{background:var(--panel2);color:var(--amber);border-left-color:var(--amber);}
-  .sb-item .sb-icon{width:18px;text-align:center;}
-  .sb-item.soon{opacity:.4;cursor:default;}
-  .sb-item.soon:hover{background:none;color:var(--dim);}
-  .sb-soon-tag{font-size:9px;text-transform:uppercase;background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-left:auto;}
-  #mainContent{flex:1;min-width:0;}
-  #app{max-width:1240px;margin:0;padding:20px 24px 80px;}
-
-  header.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
-  header.topbar h1{font-size:20px;font-weight:700;margin:0;}
-  header.topbar h1 span{color:var(--amber);}
-  .who{font-size:13px;color:var(--dim);display:flex;align-items:center;gap:10px;}
+  #app{display:none;max-width:900px;margin:0 auto;padding:40px 16px;}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;}
+  header h1{font-size:20px;font-weight:700;margin:0;}
+  header h1 span{color:var(--amber);}
+  .who{font-size:13px;color:var(--dim);}
   .who b{color:var(--text);}
-
-  .toolbar-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;}
-  .toolbar-row input{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13px;min-width:220px;}
-  .toolbar-row select{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13px;}
-
-  .task-card{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;}
-  .task-card.high{border-left-color:var(--rust);}
-  .task-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
-  .task-title{font-weight:700;font-size:14.5px;margin-bottom:4px;}
-  .task-desc{color:var(--dim);font-size:12.5px;margin-bottom:10px;}
-  .task-complete-link{color:var(--amber);font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;}
-  .task-meta{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--dim);align-items:center;}
-  .task-meta span{display:flex;align-items:center;gap:5px;}
-  .task-tag{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:11px;}
-  .task-status{border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;}
-  .task-status.completed{background:rgba(142,163,119,.18);color:var(--sage);}
-  .task-status.notstarted{background:var(--panel2);color:var(--dim);}
-  .task-status.inprogress{background:rgba(224,168,56,.15);color:var(--amber);}
-
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 12px;font-size:12.5px;cursor:pointer;}
   .empty-state{background:var(--panel);border:1px dashed var(--line);border-radius:var(--radius);padding:48px 24px;text-align:center;color:var(--dim);}
-
-  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;z-index:50;}
-  .overlay.show{display:flex;}
-  .modal{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);width:100%;max-width:460px;padding:20px;}
-  .modal h3{margin:0 0 14px;font-size:15px;}
-  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+  .empty-state h2{color:var(--text);font-size:16px;margin:0 0 8px;}
 </style>
 </head>
 <body>
 
 <div id="loginScreen">
   <div class="login-box">
-    <h1>Black Fox <span>ERP</span></h1>
+    <h1>MI Inventory <span>Flow</span></h1>
     <div class="sub">Sign in to continue</div>
     <div class="field"><label>Email</label><input id="loginEmail" type="email"></div>
     <div class="field"><label>Password</label><input id="loginPassword" type="password"></div>
     <div class="err" id="loginErr"></div>
-    <button class="primary" style="width:100%;" onclick="submitLogin()">Sign In</button>
+    <button class="primary" onclick="submitLogin()">Sign In</button>
   </div>
 </div>
 
-<div id="shell">
-  <nav id="sidebar">
-    <div class="sb-title">Black Fox <span>ERP</span></div>
-    <div id="sidebarItems"></div>
-  </nav>
-  <div id="mainContent">
-    <div id="app">
-      <header class="topbar">
-        <h1 id="pageTitle">Tasks</h1>
-        <div class="who">Signed in as <b id="whoName"></b> <button class="ghost" onclick="logout()">Log out</button></div>
-      </header>
-
-      <!-- ---------- TASKS ---------- -->
-      <div id="tasksView">
-        <div class="toolbar-row">
-          <input id="taskSearch" placeholder="Search" oninput="renderTasksList()">
-          <select id="taskFilterStatus" onchange="renderTasksList()">
-            <option value="">Status: All</option>
-            <option value="Not Started">Not Started</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Completed">Completed</option>
-          </select>
-          <select id="taskFilterPriority" onchange="renderTasksList()">
-            <option value="">Priority: All</option>
-            <option value="High">High</option>
-            <option value="Medium">Medium</option>
-            <option value="Low">Low</option>
-          </select>
-          <div style="flex:1;"></div>
-          <button class="primary" id="btnCreateTask">+ Create Task</button>
-        </div>
-        <div id="tasksList"></div>
-      </div>
-
-      <!-- ---------- PRODUCTION BATCHES ---------- -->
-      <div id="productionBatchesView" style="display:none;">
-        <div class="hint" style="margin-bottom:12px;">Keep track of the creation of finished goods from raw materials at the facility</div>
-        <div class="toolbar-row">
-          <input id="pbSearch" placeholder="Search for a batch name" oninput="renderProductionBatchesList()">
-          <div style="flex:1;"></div>
-          <button class="primary" id="btnCreateProductionBatch">Create Production Batch</button>
-        </div>
-        <table style="width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;">
-          <thead><tr style="text-align:left;font-size:11px;text-transform:uppercase;color:var(--dim);background:var(--panel2);">
-            <th style="padding:10px 12px;">Production Batch Name</th><th style="padding:10px 12px;">Item</th><th style="padding:10px 12px;">Amount Created</th><th style="padding:10px 12px;">Status</th><th style="padding:10px 12px;">Packages Created</th>
-          </tr></thead>
-          <tbody id="pbBody" style="font-size:13px;"></tbody>
-        </table>
-      </div>
-
-      <!-- ---------- CANNABIS ITEMS ---------- -->
-      <div id="itemsView" style="display:none;">
-        <div class="hint" style="margin-bottom:12px;">Manage the cannabis items at your facility</div>
-        <div class="toolbar-row">
-          <input id="itemSearch" placeholder="Search by name or category" oninput="renderItemsList()">
-          <div style="flex:1;"></div>
-          <button class="primary" id="btnAddItem">Add New Item</button>
-        </div>
-        <table style="width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;">
-          <thead><tr style="text-align:left;font-size:11px;text-transform:uppercase;color:var(--dim);background:var(--panel2);">
-            <th style="padding:10px 12px;">Item Name</th><th style="padding:10px 12px;">Compliance Category</th><th style="padding:10px 12px;">Unit of Measure</th>
-          </tr></thead>
-          <tbody id="itemsBody" style="font-size:13px;"></tbody>
-        </table>
-      </div>
-    </div>
+<div id="app">
+  <header>
+    <h1>MI Inventory <span>Flow</span></h1>
+    <div class="who">Signed in as <b id="whoName"></b> &nbsp; <button class="ghost" onclick="logout()">Log out</button></div>
+  </header>
+  <div class="empty-state">
+    <h2>Clean slate</h2>
+    <div>Database and app have been reset. Tell Claude what to build first.</div>
   </div>
 </div>
-
-<div class="overlay" id="modalCreateItem"><div class="modal">
-  <h3>Create an Item</h3>
-  <div class="field"><label>Item Name</label><input id="itName"></div>
-  <div class="field"><label>Compliance Category</label><select id="itComplianceCat">
-    <option>Vape Cartridge</option><option>Raw Preroll</option><option>Infused Preroll</option>
-    <option>Concentrate</option><option>Infused Edible</option><option>Bud/Flower</option>
-    <option>Infused Non-Edible</option><option>Shake/Trim</option>
-  </select></div>
-  <div class="field"><label>Unit of Measure</label><select id="itUom"><option>Each</option><option>Grams</option><option>Kilograms</option><option>Milligrams</option><option>Ounces</option></select></div>
-  <div class="err" id="itErr"></div>
-  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateItem')">Cancel</button><button class="primary" onclick="submitCreateItem()">Create Item</button></div>
-</div></div>
-
-<div class="overlay" id="modalCreateProductionBatch"><div class="modal" style="max-width:680px;">
-  <h3>Create Production Batch</h3>
-  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Overview</div>
-    <div class="field"><label>Production Batch Name (Optional)</label><input id="pbName" placeholder="Auto-generated if left blank"></div>
-    <div class="field"><label>Item Being Produced</label><select id="pbItem"></select></div>
-    <div style="display:flex;gap:10px;">
-      <div class="field" style="flex:1;"><label>Number of Packages</label><input id="pbNumPackages" type="number" value="1" min="1" onchange="syncPackageRowCount()"></div>
-      <div class="field" style="flex:1;"><label>Estimated Quantity</label><input id="pbEstQty" type="number"></div>
-      <div class="field" style="flex:1;"><label>Actual Quantity</label><input id="pbActQty" type="number"></div>
-    </div>
-    <div class="field"><label>Starting Tag</label><input id="pbStartingTag" placeholder="Auto-generated"></div>
-    <div style="display:flex;gap:16px;font-size:13px;">
-      <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="pbComplianceBatch"> Compliance Batch</label>
-      <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="pbRequiresTesting"> Requires Testing</label>
-    </div>
-  </div>
-
-  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Bill of Materials</div>
-    <div id="pbBomRowsContainer"></div>
-    <button class="ghost small" onclick="addBomRow()">+ Add New Item/Category</button>
-  </div>
-
-  <div style="border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;">
-    <div style="font-weight:700;font-size:14px;margin-bottom:10px;">Package(s) Created</div>
-    <div id="pbPackageRowsContainer"></div>
-    <button class="ghost small" onclick="addPackageRow()">+ Create Another Package</button>
-  </div>
-
-  <div class="err" id="pbErr"></div>
-  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateProductionBatch')">Cancel</button><button class="primary" onclick="submitCreateProductionBatch()">Create Production Batch</button></div>
-</div></div>
-
-<div class="overlay" id="modalCreateTask"><div class="modal">
-  <h3>Create Task</h3>
-  <div class="field"><label>Title</label><input id="tkTitle"></div>
-  <div class="field"><label>Description</label><textarea id="tkDescription" rows="2"></textarea></div>
-  <div style="display:flex;gap:10px;">
-    <div class="field" style="flex:1;"><label>Assignee</label><input id="tkAssignee" placeholder="Unassigned"></div>
-    <div class="field" style="flex:1;"><label>Due Date</label><input id="tkDueDate" type="date"></div>
-  </div>
-  <div style="display:flex;gap:10px;">
-    <div class="field" style="flex:1;"><label>Priority</label><select id="tkPriority"><option value="--">--</option><option>High</option><option>Medium</option><option>Low</option></select></div>
-    <div class="field" style="flex:1;"><label>Category Tag</label><input id="tkCategoryTag" placeholder="e.g. Compliance"></div>
-  </div>
-  <div class="field"><label>Profit Center (Optional)</label><input id="tkProfitCenter"></div>
-  <div class="err" id="tkErr"></div>
-  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateTask')">Cancel</button><button class="primary" onclick="submitCreateTask()">Create Task</button></div>
-</div></div>
 
 <script>
 const SUPABASE_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
@@ -234,113 +71,6 @@ const SUPABASE_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let session = null;
-let currentSection = 'tasks';
-
-const SIDEBAR_SECTIONS = [
-  {id:'tasks', label:'Tasks', icon:'✓'},
-  {id:'activity_ledger', label:'Activity Ledger', icon:'📈', soon:true},
-  {id:'plants', label:'Plants', icon:'🌱', children:[
-    {id:'plant_batches', label:'Plant Batches'},
-    {id:'vegetation', label:'Vegetation'},
-    {id:'flowering', label:'Flowering'},
-    {id:'harvests', label:'Harvests'},
-    {id:'mothers', label:'Mothers'},
-    {id:'plants_waste_log', label:'Waste Log'},
-    {id:'rooms', label:'Rooms'},
-    {id:'totes', label:'Totes'},
-    {id:'crops', label:'Crops'}
-  ]},
-  {id:'manufacturing', label:'Manufacturing', icon:'🏭', children:[
-    {id:'production_batches', label:'Production Batches', built:true}
-  ]},
-  {id:'inventory', label:'Inventory', icon:'📦', children:[
-    {id:'packages', label:'Packages'},
-    {id:'cannabis_items', label:'Cannabis Items', built:true},
-    {id:'noncannabis_items', label:'Non-cannabis Items'},
-    {id:'inv_batches', label:'Batches'},
-    {id:'inv_categories', label:'Categories'},
-    {id:'inv_lots', label:'Lots'},
-    {id:'reserved_packages', label:'Reserved Packages'},
-    {id:'forecasting', label:'Forecasting'}
-  ]},
-  {id:'orders', label:'Orders', icon:'🏷️', children:[
-    {id:'sales', label:'Sales'},
-    {id:'fulfillments', label:'Fulfillments'},
-    {id:'purchases', label:'Purchases'},
-    {id:'receipts', label:'Receipts'},
-    {id:'transfer_order', label:'Transfer Order'},
-    {id:'buyer_menus', label:'Buyer Menus'},
-    {id:'proposals', label:'Proposals'}
-  ]},
-  {id:'transfers', label:'Transfers', icon:'🚚', children:[
-    {id:'incoming', label:'Incoming'},
-    {id:'outgoing', label:'Outgoing'},
-    {id:'manifest_template', label:'Manifest Template'}
-  ]},
-  {id:'reports', label:'Reports', icon:'📄', soon:true},
-  {id:'accounts_payable', label:'Accounts Payable', icon:'🤝', children:[
-    {id:'bills', label:'Bills'},
-    {id:'ap_payments', label:'Payments'},
-    {id:'vendors', label:'Vendors'}
-  ]},
-  {id:'accounts_receivable', label:'Accounts Receivable', icon:'💵', children:[
-    {id:'invoices', label:'Invoices'},
-    {id:'ar_payments', label:'Payments'},
-    {id:'credit_memos', label:'Credit Memos'},
-    {id:'debit_memos', label:'Debit Memos'},
-    {id:'customers', label:'Customers'}
-  ]},
-  {id:'settings', label:'Settings', icon:'⚙️', children:[
-    {id:'aging_buckets', label:'Aging Buckets'},
-    {id:'cost_items', label:'Cost Items'},
-    {id:'customer_matching', label:'Customer Matching'},
-    {id:'customer_segments', label:'Customer Segments'},
-    {id:'default_accounts', label:'Default Accounts'},
-    {id:'expense_templates', label:'Expense Templates'},
-    {id:'payment_terms', label:'Payment Terms & Methods'},
-    {id:'pricing_templates', label:'Pricing Templates'},
-    {id:'unit_costs', label:'Unit Costs'},
-    {id:'vendor_matching', label:'Vendor Matching'},
-    {id:'app_action_templates', label:'Application Action Templates'},
-    {id:'bom_templates_settings', label:'Bill of Materials Templates'},
-    {id:'settings_brands', label:'Brands'},
-    {id:'customers_vendors', label:'Customers & Vendors'},
-    {id:'drivers', label:'Drivers'},
-    {id:'settings_locations', label:'Locations'},
-    {id:'strains', label:'Strains'},
-    {id:'vehicles', label:'Vehicles'},
-    {id:'communication_preferences', label:'Communication Preferences'},
-    {id:'company_details', label:'Company Details'},
-    {id:'compartment_configuration', label:'Compartment Configuration'},
-    {id:'crm_custom_fields', label:'CRM Custom Fields'},
-    {id:'custom_field_manager', label:'Custom Field Manager'},
-    {id:'dashboards', label:'Dashboards'},
-    {id:'erp_steps', label:'ERP Steps'},
-    {id:'integrations', label:'Integrations'},
-    {id:'labels', label:'Labels'},
-    {id:'life_cycle_configuration', label:'Life Cycle Configuration'},
-    {id:'personas', label:'Personas'},
-    {id:'recipe_manager', label:'Recipe Manager'},
-    {id:'roles_permissions', label:'Roles & Permissions'},
-    {id:'sop_manager', label:'SOP Manager'},
-    {id:'task_templates', label:'Task Templates'},
-    {id:'users', label:'Users'}
-  ]},
-  {id:'illumify_hub', label:'Illumify Hub', icon:'🔗', children:[
-    {id:'hub_cannabis_items', label:'Cannabis Items'},
-    {id:'hub_sales', label:'Sales'},
-    {id:'hub_fulfillments', label:'Fulfillments'},
-    {id:'hub_invoices', label:'Invoices'},
-    {id:'hub_packages', label:'Packages'}
-  ]},
-  {id:'general_ledger', label:'General Ledger', icon:'📖', children:[
-    {id:'chart_of_accounts', label:'Chart Of Accounts'}
-  ]}
-];
-
-function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function openModal(id){ document.getElementById(id).classList.add('show'); }
-function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 
 function loadSession(){
   try{ const raw = localStorage.getItem('mi_session'); if(raw) session = JSON.parse(raw); }catch(e){ session=null; }
@@ -360,276 +90,13 @@ async function submitLogin(){
 function logout(){
   session = null;
   localStorage.removeItem('mi_session');
-  document.getElementById('shell').style.display='none';
+  document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
 }
 function enterApp(){
   document.getElementById('loginScreen').style.display='none';
-  document.getElementById('shell').style.display='flex';
+  document.getElementById('app').style.display='block';
   document.getElementById('whoName').textContent = session.name;
-  renderSidebar();
-  switchSection('tasks');
-}
-
-let expandedSidebar = {};
-function renderSidebar(){
-  const el = document.getElementById('sidebarItems');
-  el.innerHTML = SIDEBAR_SECTIONS.map(s=>{
-    if(!s.children){
-      if(s.soon) return `<div class="sb-item soon"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span class="sb-soon-tag">Not built</span></div>`;
-      return `<div class="sb-item ${currentSection===s.id?'active':''}" onclick="switchSection('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}</div>`;
-    }
-    const hasActiveChild = s.children.some(c=>c.id===currentSection);
-    const isOpen = !!expandedSidebar[s.id] || hasActiveChild;
-    let block = `<div class="sb-item ${hasActiveChild?'active':''}" onclick="toggleSidebarGroup('${s.id}')"><span class="sb-icon">${s.icon}</span>${escapeHtml(s.label)}<span style="margin-left:auto;font-size:10px;">${isOpen?'▲':'▼'}</span></div>`;
-    if(isOpen){
-      block += s.children.map(c=>{
-        if(!c.built) return `<div class="sb-item soon" style="padding-left:36px;">${escapeHtml(c.label)}<span class="sb-soon-tag">Not built</span></div>`;
-        return `<div class="sb-item ${currentSection===c.id?'active':''}" style="padding-left:36px;" onclick="switchSection('${c.id}')">${escapeHtml(c.label)}</div>`;
-      }).join('');
-    }
-    return block;
-  }).join('');
-}
-function toggleSidebarGroup(id){
-  expandedSidebar[id] = !expandedSidebar[id];
-  renderSidebar();
-}
-function switchSection(id){
-  currentSection = id;
-  renderSidebar();
-  let label = id;
-  for(const s of SIDEBAR_SECTIONS){
-    if(s.id===id){ label = s.label; break; }
-    if(s.children){ const c = s.children.find(x=>x.id===id); if(c){ label = c.label; break; } }
-  }
-  document.getElementById('pageTitle').textContent = label;
-  document.getElementById('tasksView').style.display = id==='tasks' ? 'block' : 'none';
-  document.getElementById('productionBatchesView').style.display = id==='production_batches' ? 'block' : 'none';
-  document.getElementById('itemsView').style.display = id==='cannabis_items' ? 'block' : 'none';
-  if(id==='tasks') loadAndRenderTasks();
-  if(id==='production_batches') loadAndRenderProductionBatches();
-  if(id==='cannabis_items') loadAndRenderItems();
-}
-
-// ---------- TASKS ----------
-let tasksData = [];
-async function loadAndRenderTasks(){
-  const { data, error } = await sb.from('mi_tasks').select('*').order('created_at',{ascending:false});
-  if(error){ console.error(error); return; }
-  tasksData = data || [];
-  renderTasksList();
-}
-function renderTasksList(){
-  const q = (document.getElementById('taskSearch').value||'').trim().toLowerCase();
-  const statusFilter = document.getElementById('taskFilterStatus').value;
-  const priorityFilter = document.getElementById('taskFilterPriority').value;
-  let rows = tasksData;
-  if(q) rows = rows.filter(t=> (t.title||'').toLowerCase().includes(q) || (t.description||'').toLowerCase().includes(q));
-  if(statusFilter) rows = rows.filter(t=> t.status===statusFilter);
-  if(priorityFilter) rows = rows.filter(t=> t.priority===priorityFilter);
-
-  const el = document.getElementById('tasksList');
-  if(rows.length===0){ el.innerHTML = `<div class="empty-state">No tasks yet. Click "+ Create Task" to add one.</div>`; return; }
-
-  el.innerHTML = rows.map(t=>{
-    const statusClass = t.status==='Completed' ? 'completed' : (t.status==='In Progress' ? 'inprogress' : 'notstarted');
-    const isHigh = t.priority==='High';
-    return `<div class="task-card ${isHigh?'high':''}">
-      <div class="task-card-top">
-        <div>
-          <div class="task-title">${escapeHtml(t.title)}</div>
-          <div class="task-desc">${escapeHtml(t.description||'')}</div>
-        </div>
-        ${t.status!=='Completed' ? `<div class="task-complete-link" onclick="markTaskComplete('${t.id}')">Complete</div>` : ''}
-      </div>
-      <div class="task-meta">
-        <span>👤 ${escapeHtml(t.assignee||'Unassigned')}</span>
-        ${t.due_date?`<span>📅 Due: ${new Date(t.due_date).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</span>`:''}
-        <span>🚩 Priority: ${escapeHtml(t.priority||'--')}</span>
-        ${t.profit_center?`<span>🏢 ${escapeHtml(t.profit_center)}</span>`:''}
-        ${t.category_tag?`<span class="task-tag">${escapeHtml(t.category_tag)}</span>`:''}
-        <span class="task-status ${statusClass}">${escapeHtml(t.status)}</span>
-      </div>
-    </div>`;
-  }).join('');
-}
-document.getElementById('btnCreateTask').onclick = ()=>{
-  ['tkTitle','tkDescription','tkAssignee','tkDueDate','tkCategoryTag','tkProfitCenter'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('tkPriority').value='--';
-  document.getElementById('tkErr').classList.remove('show');
-  openModal('modalCreateTask');
-};
-async function submitCreateTask(){
-  const errEl = document.getElementById('tkErr');
-  const title = document.getElementById('tkTitle').value.trim();
-  if(!title){ errEl.textContent='Enter a title.'; errEl.classList.add('show'); return; }
-  const task = {
-    title, description: document.getElementById('tkDescription').value.trim(),
-    assignee: document.getElementById('tkAssignee').value.trim(),
-    due_date: document.getElementById('tkDueDate').value,
-    priority: document.getElementById('tkPriority').value,
-    category_tag: document.getElementById('tkCategoryTag').value.trim(),
-    profit_center: document.getElementById('tkProfitCenter').value.trim()
-  };
-  const { error } = await sb.rpc('mi_create_task', { p_token: session.token, p_task: task, p_by: session.name });
-  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
-  errEl.classList.remove('show');
-  closeModal('modalCreateTask');
-  await loadAndRenderTasks();
-}
-async function markTaskComplete(taskId){
-  const { error } = await sb.rpc('mi_update_task_status', { p_token: session.token, p_task_id: taskId, p_status: 'Completed', p_by: session.name });
-  if(error){ alert('Could not update task: ' + error.message); return; }
-  await loadAndRenderTasks();
-}
-
-// ---------- CANNABIS ITEMS ----------
-let itemsData = [];
-document.getElementById('btnAddItem').onclick = ()=>{
-  document.getElementById('itName').value='';
-  document.getElementById('itErr').classList.remove('show');
-  openModal('modalCreateItem');
-};
-async function submitCreateItem(){
-  const errEl = document.getElementById('itErr');
-  const name = document.getElementById('itName').value.trim();
-  if(!name){ errEl.textContent='Enter an item name.'; errEl.classList.add('show'); return; }
-  const item = { item_name: name, unit_of_measure: document.getElementById('itUom').value, compliance_category: document.getElementById('itComplianceCat').value };
-  const { error } = await sb.rpc('mi_create_item', { p_token: session.token, p_item: item, p_by: session.name });
-  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
-  errEl.classList.remove('show');
-  closeModal('modalCreateItem');
-  await loadAndRenderItems();
-}
-async function loadAndRenderItems(){
-  const { data, error } = await sb.from('mi_items').select('*').order('created_at',{ascending:false});
-  if(error){ console.error(error); return; }
-  itemsData = data || [];
-  renderItemsList();
-}
-function renderItemsList(){
-  const q = (document.getElementById('itemSearch').value||'').trim().toLowerCase();
-  const body = document.getElementById('itemsBody');
-  let rows = itemsData;
-  if(q) rows = rows.filter(i=> (i.item_name||'').toLowerCase().includes(q) || (i.compliance_category||'').toLowerCase().includes(q));
-  if(rows.length===0){ body.innerHTML = `<tr><td colspan="3" style="padding:24px;text-align:center;color:var(--dim);">No items yet. Click "Add New Item" to create one.</td></tr>`; return; }
-  body.innerHTML = rows.map(i=>`<tr style="border-top:1px solid var(--line);"><td style="padding:9px 12px;font-weight:600;">${escapeHtml(i.item_name)}</td><td style="padding:9px 12px;">${escapeHtml(i.compliance_category||'—')}</td><td style="padding:9px 12px;">${escapeHtml(i.unit_of_measure||'—')}</td></tr>`).join('');
-}
-
-// ---------- PRODUCTION BATCHES ----------
-function genTag(){
-  const bytes = new Uint8Array(12);
-  (window.crypto || window.msCrypto).getRandomValues(bytes);
-  return [...bytes].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
-}
-function genBatchName(){
-  const d = new Date();
-  const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
-  const rand = Math.random().toString(36).slice(2,8);
-  return `pb.${mm}.${dd}.${rand}`;
-}
-let pbBomRows = [];
-let pbPackageRows = [];
-function renderBomRows(){
-  const el = document.getElementById('pbBomRowsContainer');
-  el.innerHTML = pbBomRows.map((row,i)=>`
-    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;padding-bottom:10px;${i<pbBomRows.length-1?'border-bottom:1px solid var(--line);':''}">
-      <div class="field" style="flex:2;margin-bottom:0;"><label>Item</label><select onchange="updateBomRow(${i},'itemName',this.value)">
-        <option value="">Select an item</option>
-        ${itemsData.map(it=>`<option value="${escapeHtml(it.item_name)}">${escapeHtml(it.item_name)}</option>`).join('')}
-      </select></div>
-      <div class="field" style="flex:1;margin-bottom:0;"><label>Package Tag (Optional)</label><input value="${escapeHtml(row.packageTag)}" oninput="updateBomRow(${i},'packageTag',this.value)"></div>
-      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updateBomRow(${i},'quantity',this.value)"></div>
-      ${pbBomRows.length>1?`<button class="ghost small" onclick="removeBomRow(${i})">✕</button>`:''}
-    </div>`).join('');
-  const selects = el.querySelectorAll('select');
-  pbBomRows.forEach((row,i)=>{ if(selects[i]) selects[i].value = row.itemName || ''; });
-}
-function updateBomRow(i, field, value){ pbBomRows[i][field] = value; }
-function addBomRow(){ pbBomRows.push({itemName:'',packageTag:'',quantity:''}); renderBomRows(); }
-function removeBomRow(i){ pbBomRows.splice(i,1); renderBomRows(); }
-function renderPackageRows(){
-  const el = document.getElementById('pbPackageRowsContainer');
-  el.innerHTML = pbPackageRows.map((row,i)=>`
-    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;padding-bottom:10px;${i<pbPackageRows.length-1?'border-bottom:1px solid var(--line);':''}">
-      <div class="field" style="flex:2;margin-bottom:0;"><label>Package Tag</label><input value="${escapeHtml(row.tag)}" oninput="updatePackageRow(${i},'tag',this.value)" style="font-family:monospace;font-size:12px;"></div>
-      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updatePackageRow(${i},'quantity',this.value)"></div>
-      <div class="field" style="flex:1;margin-bottom:0;"><label>Location</label><input value="${escapeHtml(row.location)}" oninput="updatePackageRow(${i},'location',this.value)"></div>
-      <div class="field" style="flex:1;margin-bottom:0;"><label>Date</label><input type="date" value="${row.date}" oninput="updatePackageRow(${i},'date',this.value)"></div>
-      ${pbPackageRows.length>1?`<button class="ghost small" onclick="removePackageRow(${i})">✕</button>`:''}
-    </div>`).join('');
-}
-function updatePackageRow(i, field, value){ pbPackageRows[i][field] = value; }
-function addPackageRow(){ pbPackageRows.push({tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}); renderPackageRows(); document.getElementById('pbNumPackages').value = pbPackageRows.length; }
-function removePackageRow(i){ pbPackageRows.splice(i,1); renderPackageRows(); document.getElementById('pbNumPackages').value = pbPackageRows.length; }
-function syncPackageRowCount(){
-  const n = Math.max(1, parseInt(document.getElementById('pbNumPackages').value,10)||1);
-  while(pbPackageRows.length < n) pbPackageRows.push({tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)});
-  while(pbPackageRows.length > n) pbPackageRows.pop();
-  renderPackageRows();
-}
-document.getElementById('btnCreateProductionBatch').onclick = async ()=>{
-  document.getElementById('pbName').value = '';
-  document.getElementById('pbNumPackages').value = '1';
-  document.getElementById('pbEstQty').value=''; document.getElementById('pbActQty').value='';
-  document.getElementById('pbStartingTag').value = genTag();
-  document.getElementById('pbComplianceBatch').checked=false; document.getElementById('pbRequiresTesting').checked=false;
-  document.getElementById('pbErr').classList.remove('show');
-  if(itemsData.length===0) await loadAndRenderItems();
-  document.getElementById('pbItem').innerHTML = itemsData.map(i=>`<option value="${i.id}" data-name="${escapeHtml(i.item_name)}">${escapeHtml(i.item_name)}</option>`).join('') || '<option value="">No items yet — create one first</option>';
-  pbBomRows = [{itemName:'',packageTag:'',quantity:''}];
-  pbPackageRows = [{tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}];
-  renderBomRows(); renderPackageRows();
-  openModal('modalCreateProductionBatch');
-};
-async function submitCreateProductionBatch(){
-  const errEl = document.getElementById('pbErr');
-  const itemSel = document.getElementById('pbItem');
-  const itemId = itemSel.value;
-  const itemName = itemSel.selectedOptions[0] ? itemSel.selectedOptions[0].dataset.name : '';
-  if(!itemId){ errEl.textContent='Choose an item being produced.'; errEl.classList.add('show'); return; }
-  const batch = {
-    batch_name: document.getElementById('pbName').value.trim() || genBatchName(),
-    item_id: itemId, item_name_snapshot: itemName,
-    number_of_packages: document.getElementById('pbNumPackages').value.trim(),
-    estimated_quantity: document.getElementById('pbEstQty').value.trim(),
-    actual_quantity: document.getElementById('pbActQty').value.trim(),
-    starting_tag: document.getElementById('pbStartingTag').value.trim() || genTag(),
-    compliance_batch: document.getElementById('pbComplianceBatch').checked,
-    requires_testing: document.getElementById('pbRequiresTesting').checked
-  };
-  const bom = pbBomRows.filter(r=>r.itemName).map(r=>({ item_name: r.itemName, package_tag: r.packageTag, quantity: r.quantity }));
-  const packages = pbPackageRows.map(r=>({ package_tag: r.tag, quantity: r.quantity, location: r.location, package_date: r.date }));
-  const { error } = await sb.rpc('mi_create_production_batch', { p_token: session.token, p_batch: batch, p_bom: bom, p_packages: packages, p_by: session.name });
-  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
-  errEl.classList.remove('show');
-  closeModal('modalCreateProductionBatch');
-  await loadAndRenderProductionBatches();
-}
-let productionBatchesData = [];
-async function loadAndRenderProductionBatches(){
-  const [batchesR, packagesR] = await Promise.all([
-    sb.from('mi_production_batches').select('*').order('created_at',{ascending:false}),
-    sb.from('mi_production_batch_packages').select('batch_id')
-  ]);
-  if(batchesR.error){ console.error(batchesR.error); return; }
-  const counts = {};
-  (packagesR.data||[]).forEach(p=> counts[p.batch_id] = (counts[p.batch_id]||0)+1);
-  productionBatchesData = (batchesR.data||[]).map(b=>({...b, packagesCreated: counts[b.id]||0}));
-  renderProductionBatchesList();
-}
-function renderProductionBatchesList(){
-  const q = (document.getElementById('pbSearch').value||'').trim().toLowerCase();
-  const body = document.getElementById('pbBody');
-  let rows = productionBatchesData;
-  if(q) rows = rows.filter(b=> (b.batch_name||'').toLowerCase().includes(q));
-  if(rows.length===0){ body.innerHTML = `<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--dim);">No production batches yet.</td></tr>`; return; }
-  body.innerHTML = rows.map(b=>{
-    const item = itemsData.find(x=>x.id===b.item_id);
-    const uom = item ? item.unit_of_measure : '';
-    return `<tr style="border-top:1px solid var(--line);"><td style="padding:9px 12px;font-family:monospace;">${escapeHtml(b.batch_name)}</td><td style="padding:9px 12px;">${escapeHtml(b.item_name_snapshot||'—')}</td><td style="padding:9px 12px;">${b.actual_quantity||b.estimated_quantity||0} ${escapeHtml(uom||'')}</td><td style="padding:9px 12px;">${escapeHtml(b.status)}</td><td style="padding:9px 12px;">${b.packagesCreated}</td></tr>`;
-  }).join('');
 }
 
 loadSession();
@@ -643,3 +110,4 @@ if('serviceWorker' in navigator){
 </script>
 </body>
 </html>
+
