@@ -595,18 +595,20 @@ function renderPbMaterialRows(type){
     el.innerHTML = `<div class="hint">This template has no ${type==='cannabis'?'cannabis':'non-cannabis'} materials.</div>`;
     return;
   }
-  el.innerHTML = rows.map((row)=>`
+  el.innerHTML = rows.map((row,i)=>`
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
       <div style="flex:2;font-size:13.5px;">${escapeHtml(row.itemName)}</div>
       <div style="flex:1;font-size:12px;color:var(--dim);">${row.perUnit || 0} per unit</div>
       <div style="flex:1;font-size:13.5px;font-weight:700;color:var(--amber);">${fmtQty(row.quantity)} needed</div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Actual Used</label><input type="number" value="${escapeHtml(row.actualUsed)}" oninput="updatePbActualUsed('${type}',${i},this.value)"></div>
     </div>`).join('');
 }
+function updatePbActualUsed(type, i, value){ (type==='cannabis'?pbCannabisRows:pbNonCannabisRows)[i].actualUsed = value; }
 function fmtQty(n){ return (n===''||n==null||isNaN(n)) ? '—' : n; }
 function recalcPbMaterialQuantities(){
   const estQty = parseFloat(document.getElementById('pbEstQty').value) || 0;
-  pbCannabisRows.forEach(row=> row.quantity = row.perUnit ? +(row.perUnit * estQty).toFixed(4) : 0);
-  pbNonCannabisRows.forEach(row=> row.quantity = row.perUnit ? +(row.perUnit * estQty).toFixed(4) : 0);
+  pbCannabisRows.forEach(row=>{ row.quantity = row.perUnit ? +(row.perUnit * estQty).toFixed(4) : 0; row.actualUsed = row.quantity; });
+  pbNonCannabisRows.forEach(row=>{ row.quantity = row.perUnit ? +(row.perUnit * estQty).toFixed(4) : 0; row.actualUsed = row.quantity; });
   renderPbMaterialRows('cannabis');
   renderPbMaterialRows('noncannabis');
 }
@@ -648,8 +650,8 @@ async function onPbItemChange(itemId){
   const tpl = templates[0];
   const { data: materials } = await sb.from('mi_bom_template_materials').select('*').eq('template_id', tpl.id);
   pbBomSource = { found:true, templateName: tpl.template_name };
-  pbCannabisRows = (materials||[]).filter(m=>m.material_type==='cannabis').map(m=>({itemName:m.item_name, perUnit:m.quantity||0, quantity:0}));
-  pbNonCannabisRows = (materials||[]).filter(m=>m.material_type==='noncannabis').map(m=>({itemName:m.item_name, perUnit:m.quantity||0, quantity:0}));
+  pbCannabisRows = (materials||[]).filter(m=>m.material_type==='cannabis').map(m=>({itemName:m.item_name, perUnit:m.quantity||0, quantity:0, actualUsed:0}));
+  pbNonCannabisRows = (materials||[]).filter(m=>m.material_type==='noncannabis').map(m=>({itemName:m.item_name, perUnit:m.quantity||0, quantity:0, actualUsed:0}));
   noteEl.innerHTML = `Materials from BOM Template: <b style="color:var(--amber);">${escapeHtml(tpl.template_name)}</b> — enter Estimated Quantity above to calculate totals needed`;
   recalcPbMaterialQuantities();
 }
@@ -753,12 +755,23 @@ async function submitCreateProductionBatch(){
     requires_testing: document.getElementById('pbRequiresTesting').checked
   };
   const bom = [
-    ...pbCannabisRows.filter(r=>r.itemName).map(r=>({material_type:'cannabis', item_name:r.itemName, quantity:r.quantity})),
-    ...pbNonCannabisRows.filter(r=>r.itemName).map(r=>({material_type:'noncannabis', item_name:r.itemName, quantity:r.quantity}))
+    ...pbCannabisRows.filter(r=>r.itemName).map(r=>({material_type:'cannabis', item_name:r.itemName, quantity:r.actualUsed})),
+    ...pbNonCannabisRows.filter(r=>r.itemName).map(r=>({material_type:'noncannabis', item_name:r.itemName, quantity:r.actualUsed}))
   ];
   const packages = pbPackageRows.map(r=>({ package_tag: r.tag, quantity: r.quantity, location: r.location, package_date: r.date }));
   const { error } = await sb.rpc('mi_create_production_batch', { p_token: session.token, p_batch: batch, p_bom: bom, p_packages: packages, p_by: session.name });
   if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+
+  // Deduct Actual Used from real inventory (Cannabis Items by name, Non-Cannabis by SKU/Flavor/Column)
+  const cannabisConsume = pbCannabisRows.filter(r=>r.itemName && r.actualUsed>0).map(r=>({item_name:r.itemName, quantity:r.actualUsed}));
+  const noncannabisConsume = pbNonCannabisRows.filter(r=>r.itemName && r.actualUsed>0).map(r=>{
+    const parts = r.itemName.split(' — ');
+    return { sku_name: parts[0]||'', flavor_name: parts[1]||'', column_name: parts[2]||'', quantity: r.actualUsed };
+  });
+  if(cannabisConsume.length>0 || noncannabisConsume.length>0){
+    await sb.rpc('mi_consume_batch_materials', { p_token: session.token, p_batch_name: batch.batch_name, p_cannabis: cannabisConsume, p_noncannabis: noncannabisConsume, p_by: session.name });
+  }
+
   errEl.classList.remove('show');
   closeModal('modalCreateProductionBatch');
   await loadAndRenderProductionBatches();
