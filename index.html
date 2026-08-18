@@ -204,23 +204,10 @@
         </div>
         <div class="card">
           <h3>Bulk Import from Excel</h3>
-          <div class="hint" style="margin-bottom:10px;">Download a template, fill it in, then upload it back. Upload SKUs before Columns or Flavors that reference them.</div>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;">
-            <div>
-              <div class="hint" style="margin-bottom:4px;">SKUs</div>
-              <a class="ghost small" style="text-decoration:none;display:inline-flex;align-items:center;margin-right:6px;" href="./NonCannabis_SKUs_Template.xlsx" download>⬇ Template</a>
-              <label class="ghost small" style="cursor:pointer;">⬆ Upload<input type="file" accept=".xlsx" style="display:none;" onchange="handleNcSkusUpload(this.files[0])"></label>
-            </div>
-            <div>
-              <div class="hint" style="margin-bottom:4px;">Columns</div>
-              <a class="ghost small" style="text-decoration:none;display:inline-flex;align-items:center;margin-right:6px;" href="./NonCannabis_Columns_Template.xlsx" download>⬇ Template</a>
-              <label class="ghost small" style="cursor:pointer;">⬆ Upload<input type="file" accept=".xlsx" style="display:none;" onchange="handleNcColumnsUpload(this.files[0])"></label>
-            </div>
-            <div>
-              <div class="hint" style="margin-bottom:4px;">Flavors</div>
-              <a class="ghost small" style="text-decoration:none;display:inline-flex;align-items:center;margin-right:6px;" href="./NonCannabis_Flavors_Template.xlsx" download>⬇ Template</a>
-              <label class="ghost small" style="cursor:pointer;">⬆ Upload<input type="file" accept=".xlsx" style="display:none;" onchange="handleNcFlavorsUpload(this.files[0])"></label>
-            </div>
+          <div class="hint" style="margin-bottom:10px;">Download the inventory template for the selected SKU — it already has your columns as headers and your flavors as rows. Fill in quantities and upload it back to set inventory.</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <button class="ghost small" onclick="downloadNcInventoryTemplate()">⬇ Download SKU Inventory Template</button>
+            <label class="ghost small" style="cursor:pointer;">⬆ Upload Filled Template<input type="file" accept=".xlsx" style="display:none;" onchange="handleNcInventoryUpload(this.files[0])"></label>
           </div>
           <div id="ncUploadStatus" class="hint" style="margin-top:10px;"></div>
         </div>
@@ -250,7 +237,7 @@
         <div class="toolbar-row">
           <input id="ciSearch" placeholder="Search by name or category" oninput="renderCannabisItemsList()">
           <div style="flex:1;"></div>
-          <a class="ghost small" style="text-decoration:none;display:inline-flex;align-items:center;" href="./Cannabis_Items_Template.xlsx" download>⬇ Download Template</a>
+          <button class="ghost small" onclick="downloadCannabisItemsTemplate()">⬇ Download Template</button>
           <label class="ghost small" style="cursor:pointer;">⬆ Upload Data<input type="file" accept=".xlsx" style="display:none;" onchange="handleCannabisItemsUpload(this.files[0])"></label>
           <button class="primary" onclick="openCreateCannabisItem()">+ Create Item</button>
         </div>
@@ -267,7 +254,7 @@
         <div class="toolbar-row">
           <input id="bomSearch" placeholder="Search templates" oninput="renderBomTemplatesList()">
           <div style="flex:1;"></div>
-          <a class="ghost small" style="text-decoration:none;display:inline-flex;align-items:center;" href="./BOM_Templates_Template.xlsx" download>⬇ Download Template</a>
+          <button class="ghost small" onclick="downloadBomTemplatesTemplate()">⬇ Download Template</button>
           <label class="ghost small" style="cursor:pointer;">⬆ Upload Data<input type="file" accept=".xlsx" style="display:none;" onchange="handleBomTemplatesUpload(this.files[0])"></label>
           <button class="primary" onclick="openCreateBomTemplate()">+ Create Template</button>
         </div>
@@ -466,7 +453,143 @@ const SETTINGS_GRID = [
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 // ---------- EXCEL IMPORT (shared parser + per-section handlers) ----------
-// Templates are 3 fixed rows before data: 1=instructions, 2=headers, 3=example. Data starts row 4.
+// ---------- SHARED XLSX UTILITIES ----------
+function xlsxDownload(wb, filename){
+  const data = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  const blob = new Blob([data], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); document.body.removeChild(a); }, 500);
+}
+function makeSheet(headers, rows, instructions){
+  const aoa = [
+    [instructions],
+    headers,
+    ...rows
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:headers.length-1}}];
+  ws['!cols'] = headers.map(()=>({wch:28}));
+  return ws;
+}
+
+// ---------- CANNABIS ITEMS: download blank template ----------
+function downloadCannabisItemsTemplate(){
+  const wb = XLSX.utils.book_new();
+  const ws = makeSheet(
+    ['Item Name','Category','Unit of Measure'],
+    [['Distillate','Concentrate','g']], // example row
+    'Fill from row 4 onward. Categories: Concentrate, Infused Preroll, Infused Edible, Raw Edible, Infused Flower, Vape/Cartridges, Flower/Buds, Shake/Trim, Infused Non-Edible, Raw Preroll. UoM: g or ea. Row 3 is an example and will be skipped.'
+  );
+  XLSX.utils.book_append_sheet(wb, ws, 'Cannabis Items');
+  xlsxDownload(wb, 'Cannabis_Items_Template.xlsx');
+}
+
+// ---------- BOM TEMPLATES: download blank template ----------
+function downloadBomTemplatesTemplate(){
+  const wb = XLSX.utils.book_new();
+  const ws = makeSheet(
+    ['Template Name','Output Item Name','Material Type','Material Item Name','Quantity Per Unit','Cost Category'],
+    [['2g AIO Blue Dream BOM','Distillate Vape','cannabis','Distillate','0.5','']], // example row
+    'Fill from row 4 onward. Use the same Template Name on every material row belonging to the same template. Material Type: "cannabis" or "noncannabis". Non-cannabis format: "SKU — Flavor — Column". Row 3 is an example and will be skipped.'
+  );
+  XLSX.utils.book_append_sheet(wb, ws, 'BOM Templates');
+  xlsxDownload(wb, 'BOM_Templates_Template.xlsx');
+}
+
+// ---------- NON-CANNABIS INVENTORY TEMPLATE (per SKU, pre-filled with real columns & flavors) ----------
+async function downloadNcInventoryTemplate(){
+  const skuId = document.getElementById('ncbSku').value;
+  const sku = skusData.find(s=>s.id===skuId);
+  if(!skuId || !sku){ document.getElementById('ncUploadStatus').textContent='Select a SKU first.'; return; }
+
+  const [colsR, flavR, invR] = await Promise.all([
+    sb.from('mi_nc_columns').select('*').eq('sku_id', skuId).order('display_order'),
+    sb.from('mi_nc_flavors').select('*').eq('sku_id', skuId).order('name'),
+    sb.from('mi_nc_inventory').select('*').eq('sku_id', skuId)
+  ]);
+  const cols = colsR.data || []; const flavors = flavR.data || []; const inv = invR.data || [];
+  if(cols.length===0 || flavors.length===0){ document.getElementById('ncUploadStatus').textContent='This SKU needs at least one column and one flavor before downloading a template.'; return; }
+
+  const cellMap = {};
+  inv.forEach(c=> cellMap[c.flavor_id+'::'+c.column_id] = c.quantity);
+
+  const wb = XLSX.utils.book_new();
+  const instructions = `SKU: ${sku.name} — Fill in the Flavor / Column quantities starting at row 4. Existing quantities are pre-filled. Change values and upload to update inventory. Do not add or remove columns or rename headers.`;
+  const headers = ['Flavor', ...cols.map(c=>c.column_name)];
+  const dataRows = flavors.map(f=>[f.name, ...cols.map(c=> cellMap[f.id+'::'+c.id] ?? 0)]);
+  // Row 3 in our structure is the FIRST data row — no example needed since it's real data
+  // We build: row1=instructions, row2=headers, rows3+=data
+  const aoa = [[instructions], headers, ...dataRows];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = headers.map(()=>({wch:24}));
+  // Store metadata in a hidden sheet so the uploader knows which SKU this belongs to
+  const metaWs = XLSX.utils.aoa_to_sheet([[skuId, sku.name], ...cols.map(c=>[c.id, c.column_name]), ...flavors.map(f=>[f.id, f.name, 'flavor'])]);
+  XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
+  XLSX.utils.book_append_sheet(wb, metaWs, '_meta');
+  xlsxDownload(wb, `${sku.name.replace(/[^a-z0-9]/gi,'_')}_Inventory_Template.xlsx`);
+}
+
+// ---------- NON-CANNABIS INVENTORY UPLOAD (reads the same per-SKU template) ----------
+async function handleNcInventoryUpload(file){
+  if(!file) return;
+  const statusEl = document.getElementById('ncUploadStatus');
+  statusEl.textContent = 'Reading file...';
+  let workbook;
+  try{
+    const buf = await file.arrayBuffer();
+    workbook = XLSX.read(new Uint8Array(buf), {type:'array'});
+  }catch(e){ statusEl.textContent='Could not read file: '+e.message; return; }
+
+  // Read metadata sheet for IDs
+  if(!workbook.SheetNames.includes('_meta')){ statusEl.textContent='This file was not generated by the SKU Inventory Template download. Please download the template first.'; return; }
+  const metaSheet = workbook.Sheets['_meta'];
+  const metaRows = XLSX.utils.sheet_to_json(metaSheet, {header:1, defval:''});
+  const skuId = metaRows[0]?.[0];
+  const colMap = {}; // column_name -> column_id
+  const flavMap = {}; // flavor_name -> flavor_id
+  for(const row of metaRows.slice(1)){
+    const [id, name, type] = row;
+    if(type==='flavor') flavMap[String(name).trim()] = id;
+    else colMap[String(name).trim()] = id;
+  }
+
+  // Read inventory sheet
+  const invSheet = workbook.Sheets['Inventory'];
+  const invRows = XLSX.utils.sheet_to_json(invSheet, {header:1, defval:''});
+  const headers = invRows[1] || []; // row index 1 = row 2 in Excel
+  const dataRows = invRows.slice(2); // data starts at row 3 (index 2), no example row here
+
+  let updated=0, skipped=0; const errors=[];
+  for(const row of dataRows){
+    const flavorName = String(row[0]||'').trim();
+    if(!flavorName) continue;
+    const flavorId = flavMap[flavorName];
+    if(!flavorId){ skipped++; errors.push(`Flavor "${flavorName}" not found in database`); continue; }
+
+    for(let ci=1; ci<headers.length; ci++){
+      const colName = String(headers[ci]||'').trim();
+      const colId = colMap[colName];
+      if(!colId) continue;
+      const qty = parseFloat(row[ci]);
+      if(isNaN(qty)) continue;
+
+      // Use the existing adjust RPC to set the value — calculate delta
+      const { data: inv } = await sb.from('mi_nc_inventory').select('quantity').eq('flavor_id', flavorId).eq('column_id', colId).maybeSingle();
+      const current = inv ? (inv.quantity||0) : 0;
+      const delta = qty - current;
+      if(delta===0) continue;
+      const type = delta>0 ? 'increase' : 'decrease';
+      const { error } = await sb.rpc('mi_nc_adjust', { p_token: session.token, p_sku_id: skuId, p_flavor_id: flavorId, p_column_id: colId, p_type: type, p_amount: Math.abs(delta), p_reason: 'Bulk import from Excel template', p_by: session.name });
+      if(error) errors.push(`${flavorName}/${colName}: ${error.message}`); else updated++;
+    }
+  }
+  showUploadStatus('ncUploadStatus', updated, skipped, errors);
+  // Refresh the full view
+  if(currentSection==='fullview') loadFullView();
+}
+
+// ---------- CANNABIS ITEMS UPLOAD ----------
 function parseExcelFile(file){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
