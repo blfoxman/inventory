@@ -515,7 +515,7 @@ async function downloadNcInventoryTemplate(){
   inv.forEach(c=> cellMap[c.flavor_id+'::'+c.column_id] = c.quantity);
 
   const wb = XLSX.utils.book_new();
-  const instructions = `SKU: ${sku.name} — Fill in the Flavor / Column quantities starting at row 4. Existing quantities are pre-filled. Change values and upload to update inventory. Do not add or remove columns or rename headers.`;
+  const instructions = `SKU: ${sku.name} — Existing quantities are pre-filled. Edit quantities or add new flavor rows at the bottom to create new flavors. Do NOT change column headers. Upload when done.`;
   const headers = ['Flavor', ...cols.map(c=>c.column_name)];
   const dataRows = flavors.map(f=>[f.name, ...cols.map(c=> cellMap[f.id+'::'+c.id] ?? 0)]);
   // Row 3 in our structure is the FIRST data row — no example needed since it's real data
@@ -547,7 +547,7 @@ async function handleNcInventoryUpload(file){
   const metaRows = XLSX.utils.sheet_to_json(metaSheet, {header:1, defval:''});
   const skuId = metaRows[0]?.[0];
   const colMap = {}; // column_name -> column_id
-  const flavMap = {}; // flavor_name -> flavor_id
+  let flavMap = {}; // flavor_name -> flavor_id — built fresh below so new flavors are included
   for(const row of metaRows.slice(1)){
     const [id, name, type] = row;
     if(type==='flavor') flavMap[String(name).trim()] = id;
@@ -557,15 +557,37 @@ async function handleNcInventoryUpload(file){
   // Read inventory sheet
   const invSheet = workbook.Sheets['Inventory'];
   const invRows = XLSX.utils.sheet_to_json(invSheet, {header:1, defval:''});
-  const headers = invRows[1] || []; // row index 1 = row 2 in Excel
-  const dataRows = invRows.slice(2); // data starts at row 3 (index 2), no example row here
+  const headers = invRows[1] || [];
+  const dataRows = invRows.slice(2).filter(r=> String(r[0]||'').trim() !== '');
 
-  let updated=0, skipped=0; const errors=[];
+  let created=0, updated=0; const errors=[];
+
+  statusEl.textContent = 'Checking for new flavors...';
+  for(const row of dataRows){
+    const flavorName = String(row[0]||'').trim();
+    if(!flavorName) continue;
+    if(!flavMap[flavorName]){
+      // New flavor — create it, which auto-backfills inventory cells for all existing columns
+      const { data: newId, error } = await sb.rpc('mi_nc_add_flavor', { p_token: session.token, p_sku_id: skuId, p_flavor_name: flavorName, p_by: session.name });
+      if(error){ errors.push(`Could not create flavor "${flavorName}": ${error.message}`); continue; }
+      flavMap[flavorName] = newId;
+      created++;
+    }
+  }
+
+  // Refresh the flavor list in memory if new ones were created
+  if(created>0){
+    const { data: freshFlavors } = await sb.from('mi_nc_flavors').select('*').eq('sku_id', skuId);
+    (freshFlavors||[]).forEach(f=> flavMap[f.name.trim()] = f.id);
+  }
+
+  statusEl.textContent = `${created > 0 ? created + ' flavor(s) created. ' : ''}Setting quantities...`;
+
   for(const row of dataRows){
     const flavorName = String(row[0]||'').trim();
     if(!flavorName) continue;
     const flavorId = flavMap[flavorName];
-    if(!flavorId){ skipped++; errors.push(`Flavor "${flavorName}" not found in database`); continue; }
+    if(!flavorId){ errors.push(`Flavor "${flavorName}" could not be resolved — skipped`); continue; }
 
     for(let ci=1; ci<headers.length; ci++){
       const colName = String(headers[ci]||'').trim();
@@ -574,18 +596,24 @@ async function handleNcInventoryUpload(file){
       const qty = parseFloat(row[ci]);
       if(isNaN(qty)) continue;
 
-      // Use the existing adjust RPC to set the value — calculate delta
       const { data: inv } = await sb.from('mi_nc_inventory').select('quantity').eq('flavor_id', flavorId).eq('column_id', colId).maybeSingle();
       const current = inv ? (inv.quantity||0) : 0;
       const delta = qty - current;
       if(delta===0) continue;
-      const type = delta>0 ? 'increase' : 'decrease';
-      const { error } = await sb.rpc('mi_nc_adjust', { p_token: session.token, p_sku_id: skuId, p_flavor_id: flavorId, p_column_id: colId, p_type: type, p_amount: Math.abs(delta), p_reason: 'Bulk import from Excel template', p_by: session.name });
+      const adjType = delta>0 ? 'increase' : 'decrease';
+      const { error } = await sb.rpc('mi_nc_adjust', { p_token: session.token, p_sku_id: skuId, p_flavor_id: flavorId, p_column_id: colId, p_type: adjType, p_amount: Math.abs(delta), p_reason: 'Bulk import from Excel template', p_by: session.name });
       if(error) errors.push(`${flavorName}/${colName}: ${error.message}`); else updated++;
     }
   }
-  showUploadStatus('ncUploadStatus', updated, skipped, errors);
-  // Refresh the full view
+
+  let summary = '';
+  if(created>0) summary += `${created} new flavor(s) added. `;
+  summary += `${updated} quantity cell(s) updated.`;
+  if(errors.length>0) summary += `<br><span style="color:var(--rust);">${errors.slice(0,10).map(e=>escapeHtml(e)).join('<br>')}</span>`;
+  statusEl.innerHTML = summary;
+
+  // Refresh builder and full view
+  renderSkuBuilder();
   if(currentSection==='fullview') loadFullView();
 }
 
