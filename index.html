@@ -94,368 +94,308 @@
   .ac-option{padding:9px 10px;font-size:13px;cursor:pointer;}
   .ac-option:hover, .ac-option.hi{background:var(--panel);color:var(--amber);}
   .ac-empty{padding:9px 10px;font-size:12.5px;color:var(--dim);}
-
-  .amber-dim{ background: rgba(196,148,60,.15); }
-  .sage-dim{ background: rgba(106,153,85,.15); }
-
 </style>
 </head>
 <body>
-<div id="loginScreen" style="display:none;position:fixed;inset:0;background:var(--bg);align-items:center;justify-content:center;z-index:999;">
-  <div style="background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:40px;width:340px;">
-    <div style="font-size:22px;font-weight:700;color:var(--amber);margin-bottom:6px;">Black Fox ERP</div>
-    <div class="hint" style="margin-bottom:24px;">Sign in to continue</div>
-    <div class="field"><label>Email</label><input id="loginEmail" type="email" placeholder="you@example.com"></div>
-    <div class="field"><label>Password</label><input id="loginPassword" type="password" placeholder="Password"></div>
-    <div id="loginErr" class="error"></div>
-    <button class="primary" style="width:100%;margin-top:8px;" onclick="submitLogin()">Sign In</button>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <h1>Black Fox <span>ERP</span></h1>
+    <div class="sub">Sign in to continue</div>
+    <div class="field"><label>Email</label><input id="loginEmail" type="email"></div>
+    <div class="field"><label>Password</label><input id="loginPassword" type="password"></div>
+    <div class="err" id="loginErr"></div>
+    <button class="primary" style="width:100%;" onclick="submitLogin()">Sign In</button>
   </div>
 </div>
 
-<div id="appShell" style="display:none;">
-  <div class="sidebar">
-    <div class="sidebar-brand">Black Fox <span style="color:var(--amber);">ERP</span></div>
-    <div id="sidebarNav"></div>
-    <div style="margin-top:auto;padding:16px;border-top:1px solid var(--line);font-size:12px;color:var(--dim);">
-      Signed in as <b id="userNameDisplay"></b>
-      <button class="ghost small" style="margin-top:8px;width:100%;" onclick="logout()">Log out</button>
-    </div>
-  </div>
-  <div class="main">
-    <div class="topbar"><span id="pageTitle">Batch Orders</span></div>
-    <div class="content" id="mainContent">
+<div id="shell">
+  <nav id="sidebar">
+    <div class="sb-title">Black Fox <span>ERP</span></div>
+    <div id="sidebarItems"></div>
+  </nav>
+  <div id="mainContent">
+    <div id="app">
+      <header class="topbar">
+        <h1 id="pageTitle">Non Cannabis Inventory</h1>
+        <div class="who">Signed in as <b id="whoName"></b> <button class="ghost" onclick="logout()">Log out</button></div>
+      </header>
 
-      <!-- NC ADJUSTMENT -->
+      <!-- ---------- ADJUSTMENT ---------- -->
       <div id="adjustmentView" style="display:none;">
-        <div class="toolbar-row">
-          <select id="adjSku" onchange="onAdjSkuChange()"><option value="">Select SKU</option></select>
-          <select id="adjFlavor" onchange="onAdjFlavorChange()"><option value="">Select Flavor</option></select>
-          <select id="adjColumn"><option value="">Select Column</option></select>
-        </div>
-        <div id="adjCurrentQty" class="hint" style="margin-bottom:12px;"></div>
-        <div class="card" style="max-width:500px;">
-          <div class="field"><label>Type</label><select id="adjType"><option value="increase">Increase</option><option value="decrease">Decrease</option></select></div>
-          <div class="field"><label>Amount</label><input id="adjAmount" type="number" min="0" step="any"></div>
-          <div class="field"><label>Reason</label><input id="adjReason" placeholder="Required"></div>
-          <div id="adjErr" class="error"></div>
+        <div class="card">
+          <h3>Make an Adjustment</h3>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <div class="field" style="flex:1;min-width:180px;"><label>SKU</label><select id="adjSku" onchange="onAdjSkuChange()"></select></div>
+            <div class="field" style="flex:1;min-width:180px;"><label>Flavor</label><select id="adjFlavor" onchange="onAdjCellChange()"></select></div>
+            <div class="field" style="flex:1;min-width:180px;"><label>Column</label><select id="adjColumn" onchange="onAdjCellChange()"></select></div>
+          </div>
+          <div class="hint" id="adjCurrentQty" style="margin-bottom:10px;"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <div class="field" style="flex:1;min-width:140px;"><label>Increase or Decrease</label><select id="adjType"><option value="increase">Increase</option><option value="decrease">Decrease</option></select></div>
+            <div class="field" style="flex:1;min-width:140px;"><label>Amount</label><input id="adjAmount" type="number" min="0" step="1"></div>
+          </div>
+          <div class="field"><label>Reason</label><input id="adjReason" placeholder="e.g. Physical count correction"></div>
+          <div class="err" id="adjErr"></div>
           <button class="primary" onclick="submitAdjustment()">Submit Adjustment</button>
         </div>
-        <h3 style="margin-top:28px;">Recent Adjustments</h3>
-        <div id="adjLogList"></div>
+        <div class="card">
+          <h3>Recent Adjustments</h3>
+          <div id="adjLogList"></div>
+        </div>
       </div>
 
-      <!-- NC FULL VIEW -->
+      <!-- ---------- FULL VIEW ---------- -->
       <div id="fullViewView" style="display:none;">
-        <div class="toolbar-row"><select id="fvSku" onchange="loadFullView()"><option value="">Select SKU</option></select></div>
-        <div id="fullViewTable"></div>
+        <div class="toolbar-row">
+          <select id="fvSku" onchange="renderFullView()"></select>
+        </div>
+        <div id="fullViewTableWrap"></div>
       </div>
 
-      <!-- CANNABIS ADJUSTMENT -->
+      <!-- ---------- CANNABIS INVENTORY: ADJUSTMENT ---------- -->
       <div id="cannabisAdjustmentView" style="display:none;">
-        <div class="card" style="max-width:520px;">
-          <h3>Cannabis Inventory Adjustment</h3>
-          <div class="field"><label>Category</label><select id="caCategory" onchange="onCaCategoryChange()"><option value="">Select Category</option></select></div>
-          <div class="field"><label>SKU</label><select id="caSku" onchange="onCaSkuChange()"><option value="">Select SKU</option></select></div>
-          <div class="field"><label>Flavor</label><select id="caFlavor" onchange="onCaFlavorChange()"><option value="">Select Flavor</option></select></div>
-          <div id="caCurrentQty" class="hint" style="margin-bottom:10px;"></div>
-          <div class="field"><label>Type</label><select id="caType"><option value="increase">Increase</option><option value="decrease">Decrease</option></select></div>
-          <div class="field"><label>Amount</label><input id="caAmount" type="number" min="0" step="any"></div>
-          <div class="field"><label>Reason</label><input id="caReason" placeholder="Required"></div>
-          <div id="caErr" class="error"></div>
+        <div class="card">
+          <h3>Make an Adjustment</h3>
+          <div class="field"><label>Item</label><div id="caItemAc"></div></div>
+          <div class="hint" id="caCurrentQty" style="margin-bottom:10px;"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <div class="field" style="flex:1;min-width:140px;"><label>Increase or Decrease</label><select id="caType"><option value="increase">Increase</option><option value="decrease">Decrease</option></select></div>
+            <div class="field" style="flex:1;min-width:140px;"><label>Amount</label><input id="caAmount" type="number" min="0" step="1"></div>
+          </div>
+          <div class="field"><label>Reason</label><input id="caReason" placeholder="e.g. Physical count correction"></div>
+          <div class="err" id="caErr"></div>
           <button class="primary" onclick="submitCannabisAdjustment()">Submit Adjustment</button>
         </div>
-        <h3 style="margin-top:28px;">Recent Adjustments</h3>
-        <div id="caLogList"></div>
-      </div>
-
-      <!-- CANNABIS FULL VIEW -->
-      <div id="cannabisFullViewView" style="display:none;"><div id="cannabisFullViewContent"></div></div>
-
-      <!-- BATCH ORDERS LIST -->
-      <div id="batchOrdersView" style="display:none;">
-        <div class="toolbar-row">
-          <input id="boSearch" placeholder="Search batch orders" oninput="renderBatchOrdersList()">
-          <div style="flex:1;"></div>
-          <select id="boStatusFilter" onchange="renderBatchOrdersList()">
-            <option value="">All Statuses</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option>
-          </select>
-          <button class="primary" onclick="openCreateBatchOrder()">+ New Batch Order</button>
+        <div class="card">
+          <h3>Recent Adjustments</h3>
+          <div id="caLogList"></div>
         </div>
-        <div id="batchOrdersList"></div>
       </div>
 
-      <!-- BATCH STAGE RUNNER -->
-      <div id="batchStageRunnerView" style="display:none;">
-        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('batch_orders')">&larr; Back to Batch Orders</button>
-        <div id="batchStageRunnerContent"></div>
+      <!-- ---------- CANNABIS INVENTORY: FULL VIEW ---------- -->
+      <div id="cannabisFullViewView" style="display:none;">
+        <table class="data">
+          <thead><tr><th>Item Name</th><th>Category</th><th>Unit of Measure</th><th>Quantity</th></tr></thead>
+          <tbody id="caFullViewBody"></tbody>
+        </table>
       </div>
 
-      <!-- SETTINGS: CANNABIS ITEMS -->
-      <div id="cannabisItemsView" style="display:none;">
-        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">&larr; Back to Settings</button>
+      <!-- ---------- MANUFACTURING: PRODUCTION BATCHES ---------- -->
+      <div id="productionBatchesView" style="display:none;">
+        <div class="hint" style="margin-bottom:12px;">Keep track of the creation of finished goods from raw materials at the facility</div>
         <div class="toolbar-row">
+          <input id="pbSearch" placeholder="Search for a batch name" oninput="renderProductionBatchesList()">
           <div style="flex:1;"></div>
-          <button class="ghost small" onclick="downloadCannabisItemsTemplate()">&#8595; Template</button>
-          <label class="ghost small" style="cursor:pointer;">&#8593; Upload<input type="file" accept=".xlsx" style="display:none;" onchange="handleCannabisItemsUpload(this.files[0])"></label>
-          <button class="primary" onclick="openCreateCategory()">+ Add Category</button>
+          <button class="primary" onclick="openCreateProductionBatch()">Create Production Batch</button>
         </div>
-        <div id="ciUploadStatus" class="hint" style="margin-bottom:10px;"></div>
-        <div id="cannabisItemsContent"></div>
+        <table class="data">
+          <thead><tr><th>Production Batch Name</th><th>Item</th><th>Amount Created</th><th>Status</th><th>Packages Created</th><th></th></tr></thead>
+          <tbody id="pbBody"></tbody>
+        </table>
       </div>
 
-      <!-- SETTINGS: NON-CANNABIS ITEM -->
+      <!-- ---------- SETTINGS: NON-CANNABIS ITEM (SKU builder) ---------- -->
       <div id="ncItemBuilderView" style="display:none;">
-        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">&larr; Back to Settings</button>
+        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">← Back to Settings</button>
         <div class="toolbar-row">
           <select id="ncbSku" onchange="renderSkuBuilder()"></select>
           <button class="ghost" onclick="openCreateSku()">+ Create SKU</button>
         </div>
         <div class="card">
           <h3>Bulk Import from Excel</h3>
-          <div class="hint" style="margin-bottom:10px;">Download the inventory template for the selected SKU &mdash; columns as headers, flavors as rows with current quantities. Fill in and upload back.</div>
+          <div class="hint" style="margin-bottom:10px;">Download the inventory template for the selected SKU — it already has your columns as headers and your flavors as rows. Fill in quantities and upload it back to set inventory.</div>
           <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-            <button class="ghost small" onclick="downloadNcInventoryTemplate()">&#8595; Download SKU Inventory Template</button>
-            <label class="ghost small" style="cursor:pointer;">&#8593; Upload Filled Template<input type="file" accept=".xlsx" style="display:none;" onchange="handleNcInventoryUpload(this.files[0])"></label>
+            <button class="ghost small" onclick="downloadNcInventoryTemplate()">⬇ Download SKU Inventory Template</button>
+            <label class="ghost small" style="cursor:pointer;">⬆ Upload Filled Template<input type="file" accept=".xlsx" style="display:none;" onchange="handleNcInventoryUpload(this.files[0])"></label>
           </div>
           <div id="ncUploadStatus" class="hint" style="margin-top:10px;"></div>
         </div>
         <div id="skuBuilderBody"></div>
       </div>
 
-      <!-- SETTINGS GRID -->
-      <div id="settingsView" style="display:none;"><div id="settingsGrid"></div></div>
-
-      <!-- TEAM & ACCESS -->
-      <div id="teamAccessView" style="display:none;">
-        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">&larr; Back to Settings</button>
-        <div id="teamAccessContent"></div>
+      <!-- ---------- SETTINGS (card grid) ---------- -->
+      <div id="settingsView" style="display:none;">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+          <input id="settingsSearch" placeholder="Search for a setting" style="max-width:280px;" oninput="renderSettingsGrid()">
+        </div>
+        <div id="settingsGrid"></div>
       </div>
 
-      <!-- BOM TEMPLATES -->
+      <!-- ---------- SETTINGS: TEAM & ACCESS ---------- -->
+      <div id="teamAccessView" style="display:none;">
+        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">← Back to Settings</button>
+        <table class="data">
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
+          <tbody id="teamBody"></tbody>
+        </table>
+      </div>
+
+      <!-- ---------- SETTINGS: CANNABIS ITEMS ---------- -->
+      <div id="cannabisItemsView" style="display:none;">
+        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">← Back to Settings</button>
+        <div class="toolbar-row">
+          <input id="ciSearch" placeholder="Search by name or category" oninput="renderCannabisItemsList()">
+          <div style="flex:1;"></div>
+          <button class="ghost small" onclick="downloadCannabisItemsTemplate()">⬇ Download Template</button>
+          <label class="ghost small" style="cursor:pointer;">⬆ Upload Data<input type="file" accept=".xlsx" style="display:none;" onchange="handleCannabisItemsUpload(this.files[0])"></label>
+          <button class="primary" onclick="openCreateCannabisItem()">+ Create Item</button>
+        </div>
+        <div id="ciUploadStatus" class="hint" style="margin-bottom:10px;"></div>
+        <table class="data">
+          <thead><tr><th>Item Name</th><th>Category</th><th>Unit of Measure</th><th></th></tr></thead>
+          <tbody id="ciBody"></tbody>
+        </table>
+      </div>
+
+      <!-- ---------- SETTINGS: BILL OF MATERIALS TEMPLATES ---------- -->
       <div id="bomTemplatesView" style="display:none;">
-        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">&larr; Back to Settings</button>
+        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">← Back to Settings</button>
         <div class="toolbar-row">
           <input id="bomSearch" placeholder="Search templates" oninput="renderBomTemplatesList()">
           <div style="flex:1;"></div>
-          <button class="ghost small" onclick="downloadBomTemplatesTemplate()">&#8595; Template</button>
-          <label class="ghost small" style="cursor:pointer;">&#8593; Upload<input type="file" accept=".xlsx" style="display:none;" onchange="handleBomTemplatesUpload(this.files[0])"></label>
+          <button class="ghost small" onclick="downloadBomTemplatesTemplate()">⬇ Download Template</button>
+          <label class="ghost small" style="cursor:pointer;">⬆ Upload Data<input type="file" accept=".xlsx" style="display:none;" onchange="handleBomTemplatesUpload(this.files[0])"></label>
           <button class="primary" onclick="openCreateBomTemplate()">+ Create Template</button>
         </div>
         <div id="bomUploadStatus" class="hint" style="margin-bottom:10px;"></div>
-        <table class="data"><thead><tr><th>Template Name</th><th>Output Item</th><th>Materials</th><th></th></tr></thead><tbody id="bomTemplatesBody"></tbody></table>
+        <table class="data">
+          <thead><tr><th>Template Name</th><th>Output Item</th><th>Materials</th><th></th></tr></thead>
+          <tbody id="bomTemplatesBody"></tbody>
+        </table>
       </div>
-
     </div>
   </div>
 </div>
 
-<!-- MODALS -->
-<div class="overlay" id="modalRename"><div class="modal" style="max-width:380px;">
-  <h3 id="renameTitle">Rename</h3>
-  <div class="field"><label>Name</label><input id="renameValue"></div>
-  <div id="renameErr" class="error"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;">
-    <button class="ghost" onclick="closeModal('modalRename')">Cancel</button>
-    <button class="primary" onclick="submitRename()">Save</button>
-  </div>
+<div class="overlay" id="modalCreateSku"><div class="modal">
+  <h3>Create SKU</h3>
+  <div class="field"><label>SKU Name</label><input id="skuName" placeholder="e.g. 2G AIO Disposable"></div>
+  <div class="err" id="skuErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateSku')">Cancel</button><button class="primary" onclick="submitCreateSku()">Create</button></div>
 </div></div>
 
-<div class="overlay" id="modalCreateCategory"><div class="modal" style="max-width:420px;">
-  <h3 id="modalCategoryTitle">Category</h3>
-  <div class="field"><label>Category Name</label><input id="catName" placeholder="e.g. Vape/Cartridges"></div>
-  <div id="catErr" class="error"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;">
-    <button class="ghost" onclick="closeModal('modalCreateCategory')">Cancel</button>
-    <button class="primary" onclick="submitCategory()">Save</button>
-  </div>
+<div class="overlay" id="modalAddColumn"><div class="modal">
+  <h3>Add Column</h3>
+  <div class="hint" style="margin-bottom:10px;">e.g. Hardware, Inserts, Packaging, Display, Master Cases — name it whatever you need.</div>
+  <div class="field"><label>Column Name</label><input id="colName"></div>
+  <div class="err" id="colErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAddColumn')">Cancel</button><button class="primary" onclick="submitAddColumn()">Add Column</button></div>
 </div></div>
 
-<div class="overlay" id="modalCreateSku"><div class="modal" style="max-width:420px;">
-  <h3 id="modalSkuTitle">SKU</h3>
-  <div class="field"><label>SKU Name</label><input id="skuName" placeholder="e.g. 2G AIO"></div>
-  <div class="field"><label>Unit of Measure</label><select id="skuUom"><option value="ea">ea</option><option value="g">g</option></select></div>
-  <div id="skuErr" class="error"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;">
-    <button class="ghost" onclick="closeModal('modalCreateSku')">Cancel</button>
-    <button class="primary" onclick="submitSku()">Save</button>
-  </div>
-</div></div>
-
-<div class="overlay" id="modalCreateFlavor"><div class="modal" style="max-width:380px;">
+<div class="overlay" id="modalAddFlavor"><div class="modal">
   <h3>Add Flavor</h3>
-  <div class="field"><label>Flavor Name</label><input id="flavorName" placeholder="e.g. Blue Slushie"></div>
-  <div id="flavorErr" class="error"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;">
-    <button class="ghost" onclick="closeModal('modalCreateFlavor')">Cancel</button>
-    <button class="primary" onclick="submitFlavor()">Add</button>
-  </div>
+  <div class="field"><label>Flavor Name</label><input id="flvName"></div>
+  <div class="err" id="flvErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalAddFlavor')">Cancel</button><button class="primary" onclick="submitAddFlavor()">Add Flavor</button></div>
 </div></div>
 
-<div class="overlay" id="modalCreateStage"><div class="modal" style="max-width:500px;">
-  <h3 id="modalStageTitle">Manufacturing Stage</h3>
-  <div class="field"><label>Stage Name</label><input id="stageName" placeholder="e.g. Priming, Filling, Packaging, QC"></div>
-  <div class="field"><label>Order</label><input id="stageOrder" type="number" min="1" value="1"></div>
-  <div class="field"><label>BOM Template <span class="hint">(optional)</span></label><div id="stageBomAc"></div></div>
-  <div id="stageErr" class="error"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;">
-    <button class="ghost" onclick="closeModal('modalCreateStage')">Cancel</button>
-    <button class="primary" onclick="submitStage()">Save</button>
+<div class="overlay" id="modalCreateProductionBatch"><div class="modal" style="max-width:640px;">
+  <h3>Create Production Batch</h3>
+  <div class="card">
+    <h3>Overview</h3>
+    <div class="field"><label>Production Batch Name (Optional)</label><input id="pbName" placeholder="Auto-generated if left blank"></div>
+    <div class="field"><label>Item Being Produced</label><div id="pbItemAc"></div><div id="pbItemLocked" style="display:none;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:13.5px;"></div></div>
+    <div style="display:flex;gap:10px;">
+      <div class="field" style="flex:1;"><label>Number of Packages</label><input id="pbNumPackages" type="number" value="1" min="1" onchange="syncPackageRowCount()"></div>
+      <div class="field" style="flex:1;"><label>Estimated Quantity</label><input id="pbEstQty" type="number" oninput="recalcPbMaterialQuantities()"></div>
+      <div class="field" style="flex:1;"><label>Actual Quantity</label><input id="pbActQty" type="number"></div>
+    </div>
+    <input type="hidden" id="pbStartingTag">
+    <div style="display:flex;gap:16px;font-size:13px;">
+      <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="pbComplianceBatch"> Compliance Batch</label>
+      <label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" id="pbRequiresTesting"> Requires Testing</label>
+    </div>
   </div>
-</div></div>
 
-<div class="overlay" id="modalCreateBatchOrder"><div class="modal" style="max-width:520px;">
-  <h3>New Batch Order</h3>
-  <div class="field"><label>Batch Name <span class="hint">(optional &mdash; auto-generated if blank)</span></label><input id="boName" placeholder="e.g. Batch 4 &mdash; 2G AIO Blue Slushie"></div>
-  <div class="field"><label>Category</label><select id="boCategory" onchange="onBoCategoryChange()"><option value="">Select Category</option></select></div>
-  <div class="field"><label>SKU</label><select id="boSku" onchange="onBoSkuChange()"><option value="">Select SKU</option></select></div>
-  <div class="field"><label>Flavor</label><select id="boFlavor"><option value="">Select Flavor</option></select></div>
-  <div class="field"><label>Estimated Quantity</label><input id="boEstQty" type="number" min="1" placeholder="Total units to produce"></div>
-  <div id="boStagesPreview" style="margin:12px 0;"></div>
-  <div id="boErr" class="error"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;">
-    <button class="ghost" onclick="closeModal('modalCreateBatchOrder')">Cancel</button>
-    <button class="primary" onclick="submitBatchOrder()">Create &amp; Start &rarr;</button>
+  <div class="card">
+    <h3>Bill of Materials</h3>
+    <div class="hint" style="margin-bottom:10px;" id="pbBomSourceNote">Choose an item above to load its Bill of Materials.</div>
+    <div class="hint" style="margin-bottom:8px;">Cannabis Materials</div>
+    <div id="pbCannabisRows"></div>
+    <div class="hint" style="margin:14px 0 8px;">Non-Cannabis Materials</div>
+    <div id="pbNonCannabisRows"></div>
   </div>
+
+  <div class="card">
+    <h3>Package(s) Created</h3>
+    <div id="pbPackageRowsContainer"></div>
+    <button class="ghost small" onclick="addPackageRow()">+ Create Another Package</button>
+  </div>
+
+  <div class="err" id="pbErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateProductionBatch')">Cancel</button><button class="primary" onclick="submitCreateProductionBatch()">Create Production Batch</button></div>
 </div></div>
 
 <div class="overlay" id="modalBomTemplate"><div class="modal" style="max-width:600px;">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
     <input id="bomTplName" placeholder="Template Name" style="flex:1;margin-right:10px;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 10px;font-size:13.5px;">
+    <button class="ghost small">Import</button>
   </div>
-  <div class="card"><h3>Output Item</h3>
+
+  <div class="card">
+    <h3>Output Items</h3>
     <div class="field"><label>Item</label><div id="bomOutputItemAc"></div></div>
-    <div class="field"><label>Cost Category <span class="hint">(optional)</span></label><input id="bomCostCategory"></div>
   </div>
-  <div class="card"><h3>Cannabis Materials</h3>
-    <div class="hint" style="margin-bottom:8px;">Quantity = per-unit rate used in batch calculations</div>
+
+  <div class="card">
+    <h3>Cannabis Materials Used</h3>
     <div id="bomCannabisRows"></div>
     <button class="ghost small" onclick="addBomMaterialRow('cannabis')">+ Add Item</button>
   </div>
-  <div class="card"><h3>Non-Cannabis Materials</h3>
-    <div class="hint" style="margin-bottom:8px;">Format: SKU &mdash; Flavor &mdash; Column</div>
+
+  <div class="card">
+    <h3>Non-Cannabis Materials Used</h3>
     <div id="bomNonCannabisRows"></div>
     <button class="ghost small" onclick="addBomMaterialRow('noncannabis')">+ Add Item</button>
   </div>
-  <div id="bomTplErr" class="error"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
-    <button class="ghost" onclick="closeModal('modalBomTemplate')">Cancel</button>
-    <button class="primary" onclick="submitBomTemplate()">Save Template</button>
+
+  <div class="card">
+    <h3>Cost Categories Used</h3>
+    <div class="field"><label>Cost Category (Optional)</label><input id="bomCostCategory"></div>
   </div>
+
+  <div class="err" id="bomTplErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalBomTemplate')">Cancel</button><button class="primary" onclick="submitBomTemplate()">Create Template</button></div>
 </div></div>
 
-<div class="overlay" id="modalNcSku"><div class="modal" style="max-width:400px;">
-  <h3 id="ncSkuModalTitle">Create SKU</h3>
-  <div class="field"><label>SKU Name</label><input id="ncSkuName"></div>
-  <div id="ncSkuErr" class="error"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;">
-    <button class="ghost" onclick="closeModal('modalNcSku')">Cancel</button>
-    <button class="primary" onclick="submitNcSku()">Save</button>
-  </div>
+<div class="overlay" id="modalCannabisItem"><div class="modal">
+  <h3 id="ciModalTitle">Create Cannabis Item</h3>
+  <div class="field"><label>Item Name</label><input id="ciName"></div>
+  <div class="field"><label>Category</label><select id="ciCategory">
+    <option>Concentrate</option>
+    <option>Infused Preroll</option>
+    <option>Infused Edible</option>
+    <option>Raw Edible</option>
+    <option>Infused Flower</option>
+    <option>Vape/Cartridges</option>
+    <option>Flower/Buds</option>
+    <option>Shake/Trim</option>
+    <option>Infused Non-Edible</option>
+    <option>Raw Preroll</option>
+  </select></div>
+  <div class="field"><label>Unit of Measure</label><select id="ciUom"><option value="g">g (Grams)</option><option value="ea">ea (Each)</option></select></div>
+  <div class="err" id="ciErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCannabisItem')">Cancel</button><button class="primary" onclick="submitCannabisItem()">Save</button></div>
 </div></div>
 
-<div class="overlay" id="modalAddColumn"><div class="modal" style="max-width:380px;">
-  <h3>Add Column</h3>
-  <div class="field"><label>Column Name</label><input id="newColumnName" placeholder="e.g. Hardware, Inserts, Packaging"></div>
-  <div id="addColumnErr" class="error"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;">
-    <button class="ghost" onclick="closeModal('modalAddColumn')">Cancel</button>
-    <button class="primary" onclick="submitAddColumn()">Add</button>
-  </div>
+<div class="overlay" id="modalRename"><div class="modal">
+  <h3 id="renameTitle">Rename</h3>
+  <div class="field"><label>Name</label><input id="renameValue"></div>
+  <div class="err" id="renameErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalRename')">Cancel</button><button class="primary" onclick="submitRename()">Save</button></div>
 </div></div>
 
-<div class="overlay" id="modalAddFlavor"><div class="modal" style="max-width:380px;">
-  <h3>Add Flavor</h3>
-  <div class="field"><label>Flavor Name</label><input id="newFlavorName"></div>
-  <div id="addFlavorErr" class="error"></div>
-  <div style="display:flex;gap:8px;justify-content:flex-end;">
-    <button class="ghost" onclick="closeModal('modalAddFlavor')">Cancel</button>
-    <button class="primary" onclick="submitAddFlavor()">Add</button>
-  </div>
-</div></div>
 <script>
+const SUPABASE_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const SB_URL = 'https://sspjcmnbdbbprtzmtigv.supabase.co';
-const SB_KEY = 'sb_publishable_ZTkMyAT-Ct8db7bZT8d-Qg_CgD9oIhL';
-const sb = supabase.createClient(SB_URL, SB_KEY);
 let session = null;
-let currentSection = 'batch_orders';
-
-function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-// ---------- AUTH ----------
-async function submitLogin(){
-  const email=document.getElementById('loginEmail').value.trim();
-  const pw=document.getElementById('loginPassword').value;
-  const errEl=document.getElementById('loginErr');
-  if(!email||!pw){ errEl.textContent='Enter email and password.'; errEl.classList.add('show'); return; }
-  const {data,error}=await sb.rpc('mi_login',{p_email:email,p_password:pw});
-  if(error||!data?.token){ errEl.textContent=error?.message||'Invalid credentials'; errEl.classList.add('show'); return; }
-  session=data; localStorage.setItem('mi_session',JSON.stringify(session)); showApp();
-}
-function logout(){ localStorage.removeItem('mi_session'); session=null; document.getElementById('loginScreen').style.display='flex'; document.getElementById('appShell').style.display='none'; }
-async function checkSession(){
-  const stored=localStorage.getItem('mi_session');
-  if(!stored){ document.getElementById('loginScreen').style.display='flex'; return; }
-  session=JSON.parse(stored);
-  const {data,error}=await sb.rpc('mi_check_session',{p_token:session.token});
-  if(error||!data){ document.getElementById('loginScreen').style.display='flex'; session=null; return; }
-  session={...session,...data}; showApp();
-}
-function showApp(){
-  document.getElementById('loginScreen').style.display='none';
-  document.getElementById('appShell').style.display='flex';
-  document.getElementById('userNameDisplay').textContent=session.name||session.email||'';
-  renderSidebar(); switchSection(currentSection);
-}
-function openModal(id){ document.getElementById(id).classList.add('open'); }
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
-
-// ---------- SIDEBAR ----------
-function renderSidebar(){
-  const nav=document.getElementById('sidebarNav');
-  const sections=[
-    {id:'batch_orders',label:'Batch Orders',icon:'🏭'},
-    {label:'INVENTORY',header:true},
-    {label:'Non-Cannabis',group:true},
-    {id:'adjustment',label:'Adjustment',indent:true},
-    {id:'fullview',label:'Full View',indent:true},
-    {label:'Cannabis',group:true},
-    {id:'cannabis_adjustment',label:'Adjustment',indent:true},
-    {id:'cannabis_fullview',label:'Full View',indent:true},
-    {label:'SETTINGS',header:true},
-    {id:'settings',label:'Settings',icon:'⚙'},
-  ];
-  nav.innerHTML=sections.map(s=>{
-    if(s.header) return `<div style="padding:14px 16px 4px;font-size:10.5px;letter-spacing:.1em;color:var(--dim);">${s.label}</div>`;
-    if(s.group) return `<div style="padding:6px 16px 2px;font-size:11.5px;font-weight:600;color:var(--dim);">${s.label}</div>`;
-    const active=currentSection===s.id||(s.id==='settings'&&['team_access','nc_item','cannabis_items','bom_templates'].includes(currentSection));
-    return `<div class="sb-item${active?' active':''}" style="padding-left:${s.indent?36:16}px;" data-sid="${s.id}">${s.icon?`<span class="sb-icon">${s.icon}</span>`:''}<span>${escapeHtml(s.label)}</span></div>`;
-  }).join('');
-  nav.querySelectorAll('[data-sid]').forEach(el=>{
-    el.addEventListener('click',()=>switchSection(el.dataset.sid));
-  });
-}
-function switchSection(id){
-  currentSection=id; renderSidebar();
-  const titles={batch_orders:'Batch Orders',batch_stage_runner:'Batch Stage Runner',adjustment:'Non-Cannabis Adjustment',fullview:'Non-Cannabis Full View',cannabis_adjustment:'Cannabis Adjustment',cannabis_fullview:'Cannabis Inventory',settings:'Settings',nc_item:'Non-Cannabis Item',team_access:'Team & Access',cannabis_items:'Cannabis Items',bom_templates:'Bill of Materials Templates'};
-  document.getElementById('pageTitle').textContent=titles[id]||id;
-  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView','cannabisItemsView','bomTemplatesView','cannabisAdjustmentView','cannabisFullViewView','batchOrdersView','batchStageRunnerView'].forEach(v=>{const el=document.getElementById(v);if(el)el.style.display='none';});
-  if(id==='adjustment'){document.getElementById('adjustmentView').style.display='block';loadAdjustmentView();}
-  if(id==='fullview'){document.getElementById('fullViewView').style.display='block';loadFullView();}
-  if(id==='settings'){document.getElementById('settingsView').style.display='block';renderSettingsGrid();}
-  if(id==='nc_item'){document.getElementById('ncItemBuilderView').style.display='block';loadSkuBuilderView();}
-  if(id==='team_access'){document.getElementById('teamAccessView').style.display='block';loadTeamAccess();}
-  if(id==='cannabis_items'){document.getElementById('cannabisItemsView').style.display='block';loadCannabisItems();}
-  if(id==='bom_templates'){document.getElementById('bomTemplatesView').style.display='block';loadBomTemplates();}
-  if(id==='cannabis_adjustment'){document.getElementById('cannabisAdjustmentView').style.display='block';loadCannabisAdjustmentView();}
-  if(id==='cannabis_fullview'){document.getElementById('cannabisFullViewView').style.display='block';loadCannabisFullView();}
-  if(id==='batch_orders'){document.getElementById('batchOrdersView').style.display='block';loadBatchOrders();}
-  if(id==='batch_stage_runner'){document.getElementById('batchStageRunnerView').style.display='block';}
-}
+let currentSection = 'fullview';
 
 const SIDEBAR_SECTIONS = [
   {id:'manufacturing', label:'Manufacturing', icon:'🏭', children:[
-    {id:'batch_orders', label:'Batch Orders', built:true},
     {id:'production_batches', label:'Production Batches', built:true}
   ]},
   {id:'inventory', label:'Inventory', icon:'📦', children:[
@@ -466,8 +406,7 @@ const SIDEBAR_SECTIONS = [
     {id:'cannabis_inventory', label:'Cannabis Inventory', children:[
       {id:'cannabis_adjustment', label:'Adjustment', built:true},
       {id:'cannabis_fullview', label:'Cannabis Full View', built:true}
-    ]},
-    {id:'cannabis_categories', label:'Cannabis Categories', built:true}
+    ]}
   ]},
   {id:'settings', label:'Settings', icon:'⚙️', built:true}
 ];
@@ -475,7 +414,7 @@ const SIDEBAR_SECTIONS = [
 const SETTINGS_GRID = [
   {category:'Facility Setup', items:[
     {id:'nc_item', label:'Non-Cannabis Item', desc:'SKUs, columns, and flavors', icon:'📦', built:true},
-    {id:'cannabis_categories', label:'Cannabis Categories', desc:'Category → SKU → Flavor hierarchy', icon:'🌿', built:true},
+    {id:'cannabis_items', label:'Cannabis Items', desc:'Item name, category, unit of measure', icon:'🌿', built:true},
     {id:'bom_templates', label:'Bill of Materials Templates', desc:'Output item + cannabis/non-cannabis materials', icon:'📄', built:true},
     {id:'settings_brands', label:'Brands', desc:'Brands'},
     {id:'settings_locations', label:'Locations', desc:'Locations'},
@@ -815,7 +754,6 @@ async function handleBomTemplatesUpload(file){
   await loadBomTemplates();
 }
 
-
 // ---------- REUSABLE AUTOCOMPLETE (type-to-search instead of a plain dropdown) ----------
 // items: array of {value, label}. onChange(value) fires whenever a selection is made or cleared.
 function makeAutocomplete(containerId, items, onChange, initialValue, placeholder){
@@ -855,503 +793,454 @@ function makeAutocomplete(containerId, items, onChange, initialValue, placeholde
   };
 }
 
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 
-// ============================================================
-// CANNABIS ITEMS: Category -> SKU -> Flavor
-// ============================================================
-let cannabisCategories=[], cannabisSkus=[], cannabisFlavors=[];
-let editingCategoryId=null, editingSkuId=null, editingSkuCategoryId=null, activeSkuForFlavor=null;
-let stagesCache={}, editingStageId=null, editingStageForCategory=null, stageBomAc=null, allBomTemplatesCache=[];
+function loadSession(){
+  try{ const raw = localStorage.getItem('mi_session'); if(raw) session = JSON.parse(raw); }catch(e){ session=null; }
+}
+async function submitLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.classList.remove('show');
+  if(!email || !password){ errEl.textContent='Enter email and password.'; errEl.classList.add('show'); return; }
+  const { data, error } = await sb.rpc('mi_login', { p_email: email, p_password: password });
+  if(error || !data || !data[0]){ errEl.textContent='Invalid email or password.'; errEl.classList.add('show'); return; }
+  session = { token: data[0].token, name: data[0].user_name, id: data[0].user_id, role: data[0].user_role };
+  localStorage.setItem('mi_session', JSON.stringify(session));
+  enterApp();
+}
+function logout(){
+  session = null;
+  localStorage.removeItem('mi_session');
+  document.getElementById('shell').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+}
+function enterApp(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('shell').style.display='flex';
+  document.getElementById('whoName').textContent = session.name;
+  renderSidebar();
+  switchSection('fullview');
+}
 
-async function loadCannabisItems(){
-  const [catR,skuR,flavR]=await Promise.all([
-    sb.from('mi_cannabis_categories').select('*').order('display_order').order('name'),
-    sb.from('mi_cannabis_skus').select('*').order('name'),
-    sb.from('mi_cannabis_flavors').select('*').order('name'),
-  ]);
-  cannabisCategories=catR.data||[]; cannabisSkus=skuR.data||[]; cannabisFlavors=flavR.data||[];
-  renderCannabisItems();
+let expandedSidebar = {nc_inventory:true, settings:true};
+const SETTINGS_SUBVIEWS = ['team_access','nc_item','cannabis_items','bom_templates'];
+function renderSidebar(){
+  const el = document.getElementById('sidebarItems');
+  el.innerHTML = SIDEBAR_SECTIONS.map(s=>renderSidebarNode(s, 0)).join('');
 }
-function renderCannabisItems(){
-  const el=document.getElementById('cannabisItemsContent');
-  if(!cannabisCategories.length){ el.innerHTML='<div class="hint" style="padding:24px;">No categories yet. Click &ldquo;+ Add Category&rdquo; to get started.</div>'; return; }
-  el.innerHTML=cannabisCategories.map(cat=>{
-    const skus=cannabisSkus.filter(s=>s.category_id===cat.id);
-    return `<div class="card" style="margin-bottom:18px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-        <h3 style="margin:0;color:var(--amber);">${escapeHtml(cat.name)}</h3>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <button class="ghost small" onclick="openEditCategory('${cat.id}','${escapeHtml(cat.name).replace(/'/g,"\\'")}')">Rename</button>
-          <button class="ghost small" onclick="openAddSku('${cat.id}')">+ SKU</button>
-          ${session.role==='admin'?`<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteCategory('${cat.id}')">Delete</button>`:''}
-        </div>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div class="hint" style="margin-bottom:6px;font-size:11px;letter-spacing:.06em;">MANUFACTURING STAGES</div>
-        <div id="stages_${cat.id}" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;min-height:28px;"><span class="hint">Loading...</span></div>
-        <button class="ghost small" onclick="openAddStage('${cat.id}')">+ Add Stage</button>
-      </div>
-      <div style="border-top:1px solid var(--line);padding-top:14px;">
-        <div class="hint" style="margin-bottom:8px;font-size:11px;letter-spacing:.06em;">SKUs & FLAVORS</div>
-        ${skus.length===0?'<div class="hint">No SKUs yet.</div>':skus.map(sku=>{
-          const flavors=cannabisFlavors.filter(f=>f.sku_id===sku.id);
-          return `<div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
-              <span style="font-weight:600;">${escapeHtml(sku.name)} <span class="hint">(${escapeHtml(sku.unit_of_measure)})</span></span>
-              <div style="display:flex;gap:6px;">
-                <button class="ghost small" onclick="openEditSku('${sku.id}','${escapeHtml(sku.name).replace(/'/g,"\\'")}','${sku.unit_of_measure}')">Edit</button>
-                <button class="ghost small" onclick="openAddFlavor('${sku.id}')">+ Flavor</button>
-                ${session.role==='admin'?`<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteSku('${sku.id}')">Delete</button>`:''}
-              </div>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;">
-              ${flavors.length===0?'<span class="hint">No flavors yet</span>':flavors.map(f=>`<span style="background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:13px;display:inline-flex;align-items:center;gap:8px;">${escapeHtml(f.name)} <span class="hint">${f.on_hand}</span>${session.role==='admin'?`<span style="cursor:pointer;color:var(--rust);font-size:11px;" onclick="deleteFlavor('${f.id}')">&#x2715;</span>`:''}</span>`).join('')}
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>`;
-  }).join('');
-  cannabisCategories.forEach(cat=>loadAndRenderCategoryStages(cat.id));
+function nodeContainsActive(node){
+  if(!node.children) return node.id===currentSection || (node.id==='settings' && SETTINGS_SUBVIEWS.includes(currentSection));
+  return node.children.some(c=>nodeContainsActive(c));
 }
-function openCreateCategory(){ editingCategoryId=null; document.getElementById('modalCategoryTitle').textContent='Add Category'; document.getElementById('catName').value=''; document.getElementById('catErr').classList.remove('show'); openModal('modalCreateCategory'); }
-function openEditCategory(id,name){ editingCategoryId=id; document.getElementById('modalCategoryTitle').textContent='Rename Category'; document.getElementById('catName').value=name; document.getElementById('catErr').classList.remove('show'); openModal('modalCreateCategory'); }
-async function submitCategory(){
-  const name=document.getElementById('catName').value.trim(); const errEl=document.getElementById('catErr');
-  if(!name){ errEl.textContent='Name required'; errEl.classList.add('show'); return; }
-  const rpc=editingCategoryId?'mi_update_cannabis_category':'mi_create_cannabis_category';
-  const params=editingCategoryId?{p_token:session.token,p_category_id:editingCategoryId,p_name:name,p_by:session.name}:{p_token:session.token,p_name:name,p_by:session.name};
-  const {error}=await sb.rpc(rpc,params);
-  if(error){ errEl.textContent=error.message; errEl.classList.add('show'); return; }
-  closeModal('modalCreateCategory'); await loadCannabisItems();
-}
-async function deleteCategory(id){ if(!confirm('Delete this category and ALL its SKUs, flavors, and stages?')) return; const {error}=await sb.rpc('mi_delete_cannabis_category',{p_token:session.token,p_category_id:id,p_by:session.name}); if(error){alert(error.message);return;} await loadCannabisItems(); }
-function openAddSku(catId){ editingSkuId=null; editingSkuCategoryId=catId; document.getElementById('modalSkuTitle').textContent='Add SKU'; document.getElementById('skuName').value=''; document.getElementById('skuUom').value='ea'; document.getElementById('skuErr').classList.remove('show'); openModal('modalCreateSku'); }
-function openEditSku(id,name,uom){ editingSkuId=id; document.getElementById('modalSkuTitle').textContent='Edit SKU'; document.getElementById('skuName').value=name; document.getElementById('skuUom').value=uom||'ea'; document.getElementById('skuErr').classList.remove('show'); openModal('modalCreateSku'); }
-async function submitSku(){
-  const name=document.getElementById('skuName').value.trim(); const uom=document.getElementById('skuUom').value; const errEl=document.getElementById('skuErr');
-  if(!name){ errEl.textContent='Name required'; errEl.classList.add('show'); return; }
-  const rpc=editingSkuId?'mi_update_cannabis_sku':'mi_create_cannabis_sku';
-  const params=editingSkuId?{p_token:session.token,p_sku_id:editingSkuId,p_name:name,p_uom:uom,p_by:session.name}:{p_token:session.token,p_category_id:editingSkuCategoryId,p_name:name,p_uom:uom,p_by:session.name};
-  const {error}=await sb.rpc(rpc,params);
-  if(error){ errEl.textContent=error.message; errEl.classList.add('show'); return; }
-  closeModal('modalCreateSku'); await loadCannabisItems();
-}
-async function deleteSku(id){ if(!confirm('Delete this SKU and all its flavors?')) return; const {error}=await sb.rpc('mi_delete_cannabis_sku',{p_token:session.token,p_sku_id:id,p_by:session.name}); if(error){alert(error.message);return;} await loadCannabisItems(); }
-function openAddFlavor(skuId){ activeSkuForFlavor=skuId; document.getElementById('flavorName').value=''; document.getElementById('flavorErr').classList.remove('show'); openModal('modalCreateFlavor'); }
-async function submitFlavor(){
-  const name=document.getElementById('flavorName').value.trim(); const errEl=document.getElementById('flavorErr');
-  if(!name){ errEl.textContent='Name required'; errEl.classList.add('show'); return; }
-  const {error}=await sb.rpc('mi_create_cannabis_flavor',{p_token:session.token,p_sku_id:activeSkuForFlavor,p_name:name,p_by:session.name});
-  if(error){ errEl.textContent=error.message; errEl.classList.add('show'); return; }
-  closeModal('modalCreateFlavor'); await loadCannabisItems();
-}
-async function deleteFlavor(id){ if(!confirm('Delete this flavor?')) return; const {error}=await sb.rpc('mi_delete_cannabis_flavor',{p_token:session.token,p_flavor_id:id,p_by:session.name}); if(error){alert(error.message);return;} await loadCannabisItems(); }
-
-async function loadAndRenderCategoryStages(categoryId){
-  const {data}=await sb.from('mi_category_stages').select('*, mi_bom_templates(template_name)').eq('category_id',categoryId).order('stage_order');
-  stagesCache[categoryId]=data||[]; renderCategoryStages(categoryId);
-}
-function renderCategoryStages(categoryId){
-  const el=document.getElementById('stages_'+categoryId); if(!el) return;
-  const stages=stagesCache[categoryId]||[];
-  if(!stages.length){ el.innerHTML='<span class="hint">No stages defined &mdash; click &ldquo;+ Add Stage&rdquo; to set up the manufacturing pipeline</span>'; return; }
-  el.innerHTML=stages.map((s,i)=>`
-    <span style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;">
-      <span style="color:var(--dim);">${s.stage_order}.</span>
-      <span>${escapeHtml(s.stage_name)}</span>
-      ${s.mi_bom_templates?`<span class="hint" style="font-size:11px;">&#x1F4CB; ${escapeHtml(s.mi_bom_templates.template_name)}</span>`:'<span class="hint" style="font-size:11px;color:var(--rust);">no BOM</span>'}
-      <span style="cursor:pointer;color:var(--amber);font-size:11px;" onclick="openEditStage('${s.id}','${categoryId}')">edit</span>
-      ${session.role==='admin'?`<span style="cursor:pointer;color:var(--rust);font-size:11px;" onclick="deleteStage('${s.id}','${categoryId}')">&#x2715;</span>`:''}
-    </span>
-    ${i<stages.length-1?'<span style="color:var(--dim);font-size:14px;">&#8594;</span>':''}`).join('');
-}
-async function openAddStage(categoryId){
-  editingStageId=null; editingStageForCategory=categoryId;
-  document.getElementById('modalStageTitle').textContent='Add Stage';
-  document.getElementById('stageName').value=''; document.getElementById('stageOrder').value=(stagesCache[categoryId]?.length||0)+1;
-  document.getElementById('stageErr').classList.remove('show');
-  if(!allBomTemplatesCache.length){ const {data}=await sb.from('mi_bom_templates').select('id,template_name').order('template_name'); allBomTemplatesCache=data||[]; }
-  stageBomAc=makeAutocomplete('stageBomAc',allBomTemplatesCache.map(t=>({value:t.id,label:t.template_name})),()=>{});
-  openModal('modalCreateStage');
-}
-async function openEditStage(stageId,categoryId){
-  editingStageId=stageId; editingStageForCategory=categoryId;
-  const stage=(stagesCache[categoryId]||[]).find(s=>s.id===stageId);
-  document.getElementById('modalStageTitle').textContent='Edit Stage';
-  document.getElementById('stageName').value=stage?.stage_name||''; document.getElementById('stageOrder').value=stage?.stage_order||1;
-  document.getElementById('stageErr').classList.remove('show');
-  if(!allBomTemplatesCache.length){ const {data}=await sb.from('mi_bom_templates').select('id,template_name').order('template_name'); allBomTemplatesCache=data||[]; }
-  stageBomAc=makeAutocomplete('stageBomAc',allBomTemplatesCache.map(t=>({value:t.id,label:t.template_name})),()=>{},stage?.bom_template_id);
-  openModal('modalCreateStage');
-}
-async function submitStage(){
-  const name=document.getElementById('stageName').value.trim(); const order=parseInt(document.getElementById('stageOrder').value)||1; const bomId=stageBomAc?stageBomAc.getValue():null; const errEl=document.getElementById('stageErr');
-  if(!name){ errEl.textContent='Stage name required'; errEl.classList.add('show'); return; }
-  const rpc=editingStageId?'mi_update_category_stage':'mi_create_category_stage';
-  const params=editingStageId?{p_token:session.token,p_stage_id:editingStageId,p_stage_name:name,p_stage_order:order,p_bom_template_id:bomId||null,p_by:session.name}:{p_token:session.token,p_category_id:editingStageForCategory,p_stage_name:name,p_stage_order:order,p_bom_template_id:bomId||null,p_by:session.name};
-  const {error}=await sb.rpc(rpc,params);
-  if(error){ errEl.textContent=error.message; errEl.classList.add('show'); return; }
-  closeModal('modalCreateStage'); await loadAndRenderCategoryStages(editingStageForCategory);
-}
-async function deleteStage(id,catId){ if(!confirm('Delete this stage?')) return; await sb.rpc('mi_delete_category_stage',{p_token:session.token,p_stage_id:id,p_by:session.name}); await loadAndRenderCategoryStages(catId); }
-
-function downloadCannabisItemsTemplate(){
-  const wb=XLSX.utils.book_new();
-  const ws=makeSheet(['Category','SKU Name','Unit of Measure','Flavor Name'],[['Vape/Cartridges','2G AIO','ea','Blue Slushie']],'Fill from row 4. One row per Flavor. Category/SKU are auto-created if they do not exist. UoM: ea or g. Row 3 is an example.');
-  XLSX.utils.book_append_sheet(wb,ws,'Cannabis Items'); xlsxDownload(wb,'Cannabis_Items_Template.xlsx');
-}
-async function handleCannabisItemsUpload(file){
-  if(!file) return;
-  const statusEl=document.getElementById('ciUploadStatus'); statusEl.textContent='Reading...';
-  let rows; try{ rows=await parseExcelFile(file); }catch(e){ statusEl.textContent='Error: '+e.message; return; }
-  await loadCannabisItems();
-  let created=0,skipped=0; const errors=[];
-  for(const r of rows){
-    const [catName,skuName,uom,flavorName]=r;
-    if(!catName||!skuName||!flavorName){ skipped++; continue; }
-    let cat=cannabisCategories.find(c=>c.name.trim().toLowerCase()===String(catName).trim().toLowerCase());
-    if(!cat){
-      const {data:newId,error}=await sb.rpc('mi_create_cannabis_category',{p_token:session.token,p_name:String(catName).trim(),p_by:session.name});
-      if(error){ errors.push(`Category "${catName}": ${error.message}`); continue; }
-      const {data}=await sb.from('mi_cannabis_categories').select('*').eq('id',newId).maybeSingle();
-      cat=data; if(cat) cannabisCategories.push(cat);
+function renderSidebarNode(node, depth){
+  const indent = 18 + depth*18;
+  if(!node.children){
+    if(!node.built){
+      return `<div class="sb-item soon" style="padding-left:${indent}px;">${node.icon?`<span class="sb-icon">${node.icon}</span>`:''}${escapeHtml(node.label)}<span class="sb-soon-tag">Not built</span></div>`;
     }
-    if(!cat) continue;
-    let sku=cannabisSkus.find(s=>s.category_id===cat.id&&s.name.trim().toLowerCase()===String(skuName).trim().toLowerCase());
-    if(!sku){
-      const {data:newId,error}=await sb.rpc('mi_create_cannabis_sku',{p_token:session.token,p_category_id:cat.id,p_name:String(skuName).trim(),p_uom:uom||'ea',p_by:session.name});
-      if(error){ errors.push(`SKU "${skuName}": ${error.message}`); continue; }
-      const {data}=await sb.from('mi_cannabis_skus').select('*').eq('id',newId).maybeSingle();
-      sku=data; if(sku) cannabisSkus.push(sku);
-    }
-    if(!sku) continue;
-    const existing=cannabisFlavors.find(f=>f.sku_id===sku.id&&f.name.trim().toLowerCase()===String(flavorName).trim().toLowerCase());
-    if(!existing){
-      const {error}=await sb.rpc('mi_create_cannabis_flavor',{p_token:session.token,p_sku_id:sku.id,p_name:String(flavorName).trim(),p_by:session.name});
-      if(error) errors.push(`Flavor "${flavorName}": ${error.message}`); else created++;
-    } else skipped++;
+    const active = nodeContainsActive(node);
+    return `<div class="sb-item ${active?'active':''}" style="padding-left:${indent}px;" onclick="switchSection('${node.id}')">${node.icon?`<span class="sb-icon">${node.icon}</span>`:''}${escapeHtml(node.label)}</div>`;
   }
-  showUploadStatus('ciUploadStatus',created,skipped,errors); await loadCannabisItems();
+  const hasActiveDescendant = nodeContainsActive(node);
+  const isOpen = !!expandedSidebar[node.id] || hasActiveDescendant;
+  let html = `<div class="sb-item ${hasActiveDescendant?'active':''}" style="padding-left:${indent}px;" onclick="toggleSidebarGroup('${node.id}')">${node.icon?`<span class="sb-icon">${node.icon}</span>`:''}${escapeHtml(node.label)}<span style="margin-left:auto;font-size:10px;">${isOpen?'▲':'▼'}</span></div>`;
+  if(isOpen){
+    html += node.children.map(c=>renderSidebarNode(c, depth+1)).join('');
+  }
+  return html;
+}
+function toggleSidebarGroup(id){ expandedSidebar[id] = !expandedSidebar[id]; renderSidebar(); }
+function findNodeById(nodes, id){
+  for(const n of nodes){
+    if(n.id===id) return n;
+    if(n.children){ const found = findNodeById(n.children, id); if(found) return found; }
+  }
+  return null;
+}
+function switchSection(id){
+  currentSection = id;
+  renderSidebar();
+  const node = findNodeById(SIDEBAR_SECTIONS, id);
+  let label = node ? node.label : id;
+  if(id==='team_access') label = 'Team & Access';
+  if(id==='nc_item') label = 'Non-Cannabis Item';
+  if(id==='cannabis_items') label = 'Cannabis Items';
+  if(id==='bom_templates') label = 'Bill of Materials Templates';
+  if(id==='cannabis_adjustment') label = 'Adjustment';
+  if(id==='cannabis_fullview') label = 'Cannabis Full View';
+  document.getElementById('pageTitle').textContent = label;
+  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView','cannabisItemsView','bomTemplatesView','cannabisAdjustmentView','cannabisFullViewView','productionBatchesView'].forEach(v=>document.getElementById(v).style.display='none');
+  if(id==='adjustment'){ document.getElementById('adjustmentView').style.display='block'; loadAdjustmentView(); }
+  if(id==='fullview'){ document.getElementById('fullViewView').style.display='block'; loadFullView(); }
+  if(id==='settings'){ document.getElementById('settingsView').style.display='block'; renderSettingsGrid(); }
+  if(id==='nc_item'){ document.getElementById('ncItemBuilderView').style.display='block'; loadSkuBuilderView(); }
+  if(id==='team_access'){ document.getElementById('teamAccessView').style.display='block'; loadTeamAccess(); }
+  if(id==='cannabis_items'){ document.getElementById('cannabisItemsView').style.display='block'; loadCannabisItems(); }
+  if(id==='bom_templates'){ document.getElementById('bomTemplatesView').style.display='block'; loadBomTemplates(); }
+  if(id==='cannabis_adjustment'){ document.getElementById('cannabisAdjustmentView').style.display='block'; loadCannabisAdjustmentView(); }
+  if(id==='cannabis_fullview'){ document.getElementById('cannabisFullViewView').style.display='block'; loadCannabisFullView(); }
+  if(id==='production_batches'){ document.getElementById('productionBatchesView').style.display='block'; loadAndRenderProductionBatches(); }
 }
 
+// ---------- MANUFACTURING: PRODUCTION BATCHES ----------
+function genTag(){
+  const bytes = new Uint8Array(12);
+  (window.crypto || window.msCrypto).getRandomValues(bytes);
+  return [...bytes].map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+function genBatchName(){
+  const d = new Date();
+  const mm = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0');
+  const rand = Math.random().toString(36).slice(2,8);
+  return `pb.${mm}.${dd}.${rand}`;
+}
+let pbCannabisRows = [];
+let pbNonCannabisRows = [];
+let pbPackageRows = [];
+let pbBomSource = null; // {found:bool, templateName:string}
+function renderPbMaterialRows(type){
+  const rows = type==='cannabis' ? pbCannabisRows : pbNonCannabisRows;
+  const containerId = type==='cannabis' ? 'pbCannabisRows' : 'pbNonCannabisRows';
+  const el = document.getElementById(containerId);
+  if(!pbBomSource || !pbBomSource.found){
+    el.innerHTML = '';
+    return;
+  }
+  if(rows.length===0){
+    el.innerHTML = `<div class="hint">This template has no ${type==='cannabis'?'cannabis':'non-cannabis'} materials.</div>`;
+    return;
+  }
+  el.innerHTML = rows.map((row,i)=>`
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <div style="flex:2;font-size:13.5px;">${escapeHtml(row.itemName)}</div>
+      <div style="flex:1;font-size:12px;color:var(--dim);">${row.perUnit || 0} per unit</div>
+      <div style="flex:1;font-size:13.5px;font-weight:700;color:var(--amber);">${fmtQty(row.quantity)} needed</div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Actual Used</label><input type="number" value="${escapeHtml(row.actualUsed)}" oninput="updatePbActualUsed('${type}',${i},this.value)"></div>
+    </div>`).join('');
+}
+function updatePbActualUsed(type, i, value){ (type==='cannabis'?pbCannabisRows:pbNonCannabisRows)[i].actualUsed = value; }
+function fmtQty(n){ return (n===''||n==null||isNaN(n)) ? '—' : n; }
+function recalcPbMaterialQuantities(){
+  const estQty = parseFloat(document.getElementById('pbEstQty').value) || 0;
+  pbCannabisRows.forEach(row=>{ row.quantity = row.perUnit ? +(row.perUnit * estQty).toFixed(4) : 0; row.actualUsed = row.quantity; });
+  pbNonCannabisRows.forEach(row=>{ row.quantity = row.perUnit ? +(row.perUnit * estQty).toFixed(4) : 0; row.actualUsed = row.quantity; });
+  renderPbMaterialRows('cannabis');
+  renderPbMaterialRows('noncannabis');
+}
+function renderPackageRows(){
+  const el = document.getElementById('pbPackageRowsContainer');
+  el.innerHTML = pbPackageRows.map((row,i)=>`
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;">
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Quantity</label><input type="number" value="${escapeHtml(row.quantity)}" oninput="updatePackageRow(${i},'quantity',this.value)"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Location</label><input value="${escapeHtml(row.location)}" oninput="updatePackageRow(${i},'location',this.value)"></div>
+      <div class="field" style="flex:1;margin-bottom:0;"><label>Date</label><input type="date" value="${row.date}" oninput="updatePackageRow(${i},'date',this.value)"></div>
+      ${pbPackageRows.length>1?`<button class="ghost small" onclick="removePackageRow(${i})">✕</button>`:''}
+    </div>`).join('');
+}
+function updatePackageRow(i, field, value){ pbPackageRows[i][field] = value; }
+function addPackageRow(){ pbPackageRows.push({tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}); renderPackageRows(); document.getElementById('pbNumPackages').value = pbPackageRows.length; }
+function removePackageRow(i){ pbPackageRows.splice(i,1); renderPackageRows(); document.getElementById('pbNumPackages').value = pbPackageRows.length; }
+function syncPackageRowCount(){
+  const n = Math.max(1, parseInt(document.getElementById('pbNumPackages').value,10)||1);
+  while(pbPackageRows.length < n) pbPackageRows.push({tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)});
+  while(pbPackageRows.length > n) pbPackageRows.pop();
+  renderPackageRows();
+}
+async function onPbItemChange(itemId){
+  const noteEl = document.getElementById('pbBomSourceNote');
+  if(!itemId){
+    pbBomSource = null; pbCannabisRows = []; pbNonCannabisRows = [];
+    noteEl.textContent = '';
+    renderPbMaterialRows('cannabis'); renderPbMaterialRows('noncannabis');
+    return;
+  }
+  const { data: templates } = await sb.from('mi_bom_templates').select('*').eq('output_item_id', itemId);
+  if(!templates || templates.length===0){
+    pbBomSource = { found:false };
+    pbCannabisRows = []; pbNonCannabisRows = [];
+    noteEl.innerHTML = `<span style="color:var(--rust);">No BOM Template found for this item — create one under Settings → Bill of Materials Templates before producing it.</span>`;
+    renderPbMaterialRows('cannabis'); renderPbMaterialRows('noncannabis');
+    return;
+  }
+  const tpl = templates[0];
+  const { data: materials } = await sb.from('mi_bom_template_materials').select('*').eq('template_id', tpl.id);
+  pbBomSource = { found:true, templateName: tpl.template_name };
+  pbCannabisRows = (materials||[]).filter(m=>m.material_type==='cannabis').map(m=>({itemName:m.item_name, perUnit:m.quantity||0, quantity:0, actualUsed:0}));
+  pbNonCannabisRows = (materials||[]).filter(m=>m.material_type==='noncannabis').map(m=>({itemName:m.item_name, perUnit:m.quantity||0, quantity:0, actualUsed:0}));
+  noteEl.innerHTML = `Materials from BOM Template: <b style="color:var(--amber);">${escapeHtml(tpl.template_name)}</b> — enter Estimated Quantity above to calculate totals needed`;
+  recalcPbMaterialQuantities();
+}
+let pbItemAc = null;
+let editingProductionBatchId = null;
+async function openCreateProductionBatch(){
+  editingProductionBatchId = null;
+  document.getElementById('pbName').value = '';
+  document.getElementById('pbNumPackages').value = '1';
+  document.getElementById('pbEstQty').value=''; document.getElementById('pbActQty').value='';
+  document.getElementById('pbStartingTag').value = genTag();
+  document.getElementById('pbComplianceBatch').checked=false; document.getElementById('pbRequiresTesting').checked=false;
+  document.getElementById('pbErr').classList.remove('show');
+  document.getElementById('pbBomSourceNote').textContent = '';
+  document.getElementById('pbItemAc').style.display = '';
+  document.getElementById('pbItemLocked').style.display = 'none';
+  document.getElementById('pbEstQty').disabled = false;
+  await fetchBomMaterialSources();
+  pbItemAc = makeAutocomplete('pbItemAc', bomCannabisItemsCache.map(i=>({value:i.id, label:i.item_name})), onPbItemChange);
+  pbBomSource = null;
+  pbCannabisRows = []; pbNonCannabisRows = [];
+  pbPackageRows = [{tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}];
+  renderPbMaterialRows('cannabis'); renderPbMaterialRows('noncannabis'); renderPackageRows();
+  openModal('modalCreateProductionBatch');
+}
+async function openEditProductionBatch(batchId){
+  editingProductionBatchId = batchId;
+  const batch = productionBatchesData.find(b=>b.id===batchId);
+  if(!batch) return;
+  await fetchBomMaterialSources();
+  document.getElementById('pbName').value = batch.batch_name;
+  document.getElementById('pbNumPackages').value = batch.number_of_packages || 1;
+  document.getElementById('pbEstQty').value = batch.estimated_quantity || '';
+  document.getElementById('pbActQty').value = batch.actual_quantity || '';
+  document.getElementById('pbEstQty').disabled = true;
+  document.getElementById('pbComplianceBatch').checked = !!batch.compliance_batch;
+  document.getElementById('pbRequiresTesting').checked = !!batch.requires_testing;
+  document.getElementById('pbErr').classList.remove('show');
+  document.getElementById('pbItemAc').style.display = 'none';
+  document.getElementById('pbItemLocked').style.display = 'block';
+  document.getElementById('pbItemLocked').textContent = batch.item_name_snapshot || '—';
+  document.getElementById('pbBomSourceNote').innerHTML = `<span style="color:var(--dim);">Item and Bill of Materials can't be changed once a batch is created — delete and recreate if the wrong item was chosen.</span>`;
 
-// ============================================================
-// CANNABIS INVENTORY
-// ============================================================
-let caCategories=[], caSkus=[], caFlavors=[];
+  const [bomR, pkgR] = await Promise.all([
+    sb.from('mi_production_batch_bom').select('*').eq('batch_id', batchId),
+    sb.from('mi_production_batch_packages').select('*').eq('batch_id', batchId)
+  ]);
+  pbCannabisRows = (bomR.data||[]).filter(m=>m.material_type==='cannabis').map(m=>({itemName:m.item_name, quantity:m.quantity}));
+  pbNonCannabisRows = (bomR.data||[]).filter(m=>m.material_type==='noncannabis').map(m=>({itemName:m.item_name, quantity:m.quantity}));
+  pbBomSource = { found:true, templateName:'' };
+  pbPackageRows = (pkgR.data||[]).map(p=>({tag:p.package_tag, quantity:p.quantity||'', location:p.location||'', date:p.package_date||new Date().toISOString().slice(0,10)}));
+  if(pbPackageRows.length===0) pbPackageRows = [{tag:genTag(), quantity:'', location:'', date:new Date().toISOString().slice(0,10)}];
+  renderPbMaterialRowsReadonly();
+  renderPackageRows();
+  openModal('modalCreateProductionBatch');
+}
+function renderPbMaterialRowsReadonly(){
+  ['pbCannabisRows','pbNonCannabisRows'].forEach((containerId,idx)=>{
+    const rows = idx===0 ? pbCannabisRows : pbNonCannabisRows;
+    const el = document.getElementById(containerId);
+    el.innerHTML = rows.length===0 ? `<div class="hint">None</div>` : rows.map(row=>`
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+        <div style="flex:2;font-size:13.5px;">${escapeHtml(row.itemName)}</div>
+        <div style="flex:1;font-size:13.5px;font-weight:700;color:var(--amber);">${fmtQty(row.quantity)}</div>
+      </div>`).join('');
+  });
+}
+async function submitCreateProductionBatch(){
+  const errEl = document.getElementById('pbErr');
+
+  if(editingProductionBatchId){
+    const name = document.getElementById('pbName').value.trim();
+    if(!name){ errEl.textContent='Enter a batch name.'; errEl.classList.add('show'); return; }
+    const packages = pbPackageRows.map(r=>({ package_tag: r.tag, quantity: r.quantity, location: r.location, package_date: r.date }));
+    const { error } = await sb.rpc('mi_update_production_batch', {
+      p_token: session.token, p_batch_id: editingProductionBatchId, p_batch_name: name,
+      p_compliance_batch: document.getElementById('pbComplianceBatch').checked,
+      p_requires_testing: document.getElementById('pbRequiresTesting').checked,
+      p_packages: packages, p_by: session.name
+    });
+    if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+    errEl.classList.remove('show');
+    closeModal('modalCreateProductionBatch');
+    await loadAndRenderProductionBatches();
+    return;
+  }
+
+  const itemId = pbItemAc ? pbItemAc.getValue() : '';
+  const itemObj = bomCannabisItemsCache.find(i=>i.id===itemId);
+  const itemName = itemObj ? itemObj.item_name : '';
+  if(!itemId){ errEl.textContent='Choose an item being produced.'; errEl.classList.add('show'); return; }
+  if(!pbBomSource || !pbBomSource.found){ errEl.textContent='No BOM Template exists for this item — create one under Settings → Bill of Materials Templates first.'; errEl.classList.add('show'); return; }
+  const batch = {
+    batch_name: document.getElementById('pbName').value.trim() || genBatchName(),
+    item_id: itemId, item_name_snapshot: itemName,
+    number_of_packages: document.getElementById('pbNumPackages').value.trim(),
+    estimated_quantity: document.getElementById('pbEstQty').value.trim(),
+    actual_quantity: document.getElementById('pbActQty').value.trim(),
+    starting_tag: document.getElementById('pbStartingTag').value.trim() || genTag(),
+    compliance_batch: document.getElementById('pbComplianceBatch').checked,
+    requires_testing: document.getElementById('pbRequiresTesting').checked
+  };
+  const bom = [
+    ...pbCannabisRows.filter(r=>r.itemName).map(r=>({material_type:'cannabis', item_name:r.itemName, quantity:r.actualUsed})),
+    ...pbNonCannabisRows.filter(r=>r.itemName).map(r=>({material_type:'noncannabis', item_name:r.itemName, quantity:r.actualUsed}))
+  ];
+  const packages = pbPackageRows.map(r=>({ package_tag: r.tag, quantity: r.quantity, location: r.location, package_date: r.date }));
+  const { error } = await sb.rpc('mi_create_production_batch', { p_token: session.token, p_batch: batch, p_bom: bom, p_packages: packages, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+
+  // Deduct Actual Used from real inventory (Cannabis Items by name, Non-Cannabis by SKU/Flavor/Column)
+  const cannabisConsume = pbCannabisRows.filter(r=>r.itemName && r.actualUsed>0).map(r=>({item_name:r.itemName, quantity:r.actualUsed}));
+  const noncannabisConsume = pbNonCannabisRows.filter(r=>r.itemName && r.actualUsed>0).map(r=>{
+    const parts = r.itemName.split(' — ');
+    return { sku_name: parts[0]||'', flavor_name: parts[1]||'', column_name: parts[2]||'', quantity: r.actualUsed };
+  });
+  if(cannabisConsume.length>0 || noncannabisConsume.length>0){
+    await sb.rpc('mi_consume_batch_materials', { p_token: session.token, p_batch_name: batch.batch_name, p_cannabis: cannabisConsume, p_noncannabis: noncannabisConsume, p_by: session.name });
+  }
+
+  errEl.classList.remove('show');
+  closeModal('modalCreateProductionBatch');
+  await loadAndRenderProductionBatches();
+}
+async function deleteProductionBatch(batchId){
+  if(!confirm("Delete this production batch? If it increased a Cannabis Item's quantity, that increase will be reversed. This cannot be undone.")) return;
+  const { error } = await sb.rpc('mi_delete_production_batch', { p_token: session.token, p_batch_id: batchId, p_by: session.name });
+  if(error){ alert('Could not delete: ' + error.message); return; }
+  await loadAndRenderProductionBatches();
+}
+let productionBatchesData = [];
+async function loadAndRenderProductionBatches(){
+  const [batchesR, packagesR] = await Promise.all([
+    sb.from('mi_production_batches').select('*').order('created_at',{ascending:false}),
+    sb.from('mi_production_batch_packages').select('batch_id')
+  ]);
+  if(batchesR.error){ console.error(batchesR.error); return; }
+  const counts = {};
+  (packagesR.data||[]).forEach(p=> counts[p.batch_id] = (counts[p.batch_id]||0)+1);
+  productionBatchesData = (batchesR.data||[]).map(b=>({...b, packagesCreated: counts[b.id]||0}));
+  renderProductionBatchesList();
+}
+function renderProductionBatchesList(){
+  const q = (document.getElementById('pbSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('pbBody');
+  let rows = productionBatchesData;
+  if(q) rows = rows.filter(b=> (b.batch_name||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--dim);">No production batches yet.</td></tr>`; return; }
+  body.innerHTML = rows.map(b=>{
+    const item = bomCannabisItemsCache.find(x=>x.id===b.item_id);
+    const uom = item ? item.unit_of_measure : '';
+    return `<tr><td style="font-family:monospace;">${escapeHtml(b.batch_name)}</td><td>${escapeHtml(b.item_name_snapshot||'—')}</td><td>${b.actual_quantity||b.estimated_quantity||0} ${escapeHtml(uom||'')}</td><td>${escapeHtml(b.status)}</td><td>${b.packagesCreated}</td>
+      <td><button class="ghost small" onclick="openEditProductionBatch('${b.id}')">Edit</button>${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteProductionBatch('${b.id}')">Delete</button>` : ''}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ---------- CANNABIS INVENTORY: ADJUSTMENT ----------
+let caItemAc = null;
 async function loadCannabisAdjustmentView(){
-  const {data}=await sb.from('mi_cannabis_categories').select('*').order('name');
-  caCategories=data||[];
-  const sel=document.getElementById('caCategory');
-  sel.innerHTML='<option value="">Select Category</option>'+caCategories.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
-  document.getElementById('caSku').innerHTML='<option value="">Select SKU</option>';
-  document.getElementById('caFlavor').innerHTML='<option value="">Select Flavor</option>';
-  document.getElementById('caCurrentQty').textContent='';
+  const { data, error } = await sb.from('mi_cannabis_items').select('*').order('item_name');
+  if(error){ console.error(error); return; }
+  cannabisItemsData = data || [];
+  caItemAc = makeAutocomplete('caItemAc', cannabisItemsData.map(i=>({value:i.id, label:i.item_name})), onCaItemChange);
+  onCaItemChange();
   await loadCannabisAdjustmentLog();
 }
-async function onCaCategoryChange(){
-  const catId=document.getElementById('caCategory').value;
-  document.getElementById('caSku').innerHTML='<option value="">Select SKU</option>';
-  document.getElementById('caFlavor').innerHTML='<option value="">Select Flavor</option>';
-  document.getElementById('caCurrentQty').textContent='';
-  if(!catId) return;
-  const {data}=await sb.from('mi_cannabis_skus').select('*').eq('category_id',catId).order('name');
-  caSkus=data||[];
-  document.getElementById('caSku').innerHTML='<option value="">Select SKU</option>'+caSkus.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
-}
-async function onCaSkuChange(){
-  const skuId=document.getElementById('caSku').value;
-  document.getElementById('caFlavor').innerHTML='<option value="">Select Flavor</option>';
-  document.getElementById('caCurrentQty').textContent='';
-  if(!skuId) return;
-  const {data}=await sb.from('mi_cannabis_flavors').select('*').eq('sku_id',skuId).order('name');
-  caFlavors=data||[];
-  document.getElementById('caFlavor').innerHTML='<option value="">Select Flavor</option>'+caFlavors.map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('');
-}
-function onCaFlavorChange(){
-  const flavorId=document.getElementById('caFlavor').value;
-  const f=caFlavors.find(x=>x.id===flavorId);
-  const sku=caSkus.find(s=>s.id===document.getElementById('caSku').value);
-  document.getElementById('caCurrentQty').textContent=f?`Current on-hand: ${f.on_hand} ${sku?.unit_of_measure||''}`:'';
+function onCaItemChange(){
+  const itemId = caItemAc ? caItemAc.getValue() : '';
+  const item = cannabisItemsData.find(i=>i.id===itemId);
+  document.getElementById('caCurrentQty').textContent = item ? `Current quantity: ${item.quantity} ${item.unit_of_measure}` : '';
 }
 async function submitCannabisAdjustment(){
-  const errEl=document.getElementById('caErr');
-  const flavorId=document.getElementById('caFlavor').value;
-  const type=document.getElementById('caType').value;
-  const amount=parseFloat(document.getElementById('caAmount').value);
-  const reason=document.getElementById('caReason').value.trim();
-  if(!flavorId){ errEl.textContent='Select a flavor.'; errEl.classList.add('show'); return; }
-  if(!amount||amount<=0){ errEl.textContent='Enter a positive amount.'; errEl.classList.add('show'); return; }
-  if(!reason){ errEl.textContent='Reason is required.'; errEl.classList.add('show'); return; }
-  const {error}=await sb.rpc('mi_cannabis_v2_adjust',{p_token:session.token,p_flavor_id:flavorId,p_type:type,p_amount:amount,p_reason:reason,p_by:session.name});
-  if(error){ errEl.textContent=error.message; errEl.classList.add('show'); return; }
+  const errEl = document.getElementById('caErr');
+  const itemId = caItemAc ? caItemAc.getValue() : '';
+  const type = document.getElementById('caType').value;
+  const amount = parseFloat(document.getElementById('caAmount').value);
+  const reason = document.getElementById('caReason').value.trim();
+  if(!itemId){ errEl.textContent='Choose an item.'; errEl.classList.add('show'); return; }
+  if(!amount || amount<=0){ errEl.textContent='Enter an amount greater than 0.'; errEl.classList.add('show'); return; }
+  if(!reason){ errEl.textContent='Enter a reason.'; errEl.classList.add('show'); return; }
+  const { error } = await sb.rpc('mi_cannabis_adjust', { p_token: session.token, p_item_id: itemId, p_type: type, p_amount: amount, p_reason: reason, p_by: session.name });
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
   document.getElementById('caAmount').value=''; document.getElementById('caReason').value='';
   await loadCannabisAdjustmentView();
 }
 async function loadCannabisAdjustmentLog(){
-  const {data}=await sb.from('mi_cannabis_v2_adjustments').select('*').order('adjusted_at',{ascending:false}).limit(30);
-  const el=document.getElementById('caLogList');
-  if(!data||!data.length){ el.innerHTML='<div class="hint">No adjustments yet.</div>'; return; }
-  el.innerHTML=data.map(a=>`<div style="border-bottom:1px solid var(--line);padding:10px 0;font-size:13px;">
-    <span style="color:${a.adjustment_type==='increase'?'var(--sage)':'var(--rust)'};">${a.adjustment_type==='increase'?'+':'-'}${a.amount}</span>
-    &nbsp;<b>${escapeHtml(a.flavor_name_snapshot)}</b> (${escapeHtml(a.sku_name_snapshot)} / ${escapeHtml(a.category_name_snapshot)})
-    &rarr; ${a.quantity_after} on hand
-    <span class="hint" style="float:right;">${new Date(a.adjusted_at).toLocaleString()} &mdash; ${escapeHtml(a.reason)}</span>
+  const { data, error } = await sb.from('mi_cannabis_adjustments').select('*').order('adjusted_at',{ascending:false}).limit(30);
+  const el = document.getElementById('caLogList');
+  if(error){ el.innerHTML = `<div class="hint">Could not load log.</div>`; return; }
+  if(!data || data.length===0){ el.innerHTML = `<div class="hint">No adjustments yet.</div>`; return; }
+  el.innerHTML = data.map(a=>`<div style="padding:8px 0;border-bottom:1px solid var(--line);font-size:12.5px;">
+    <b style="color:var(--amber);">${escapeHtml(a.adjusted_by||'Unknown')}</b> ${a.adjustment_type==='increase'?'increased':'decreased'} <b>${escapeHtml(a.item_name_snapshot)}</b> by ${a.amount} (${a.quantity_before} → ${a.quantity_after}) — "${escapeHtml(a.reason)}"
+    <div class="hint">${new Date(a.adjusted_at).toLocaleString()}</div>
   </div>`).join('');
 }
+
+// ---------- CANNABIS INVENTORY: FULL VIEW ----------
 async function loadCannabisFullView(){
-  const [catR,skuR,flavR]=await Promise.all([
-    sb.from('mi_cannabis_categories').select('*').order('display_order').order('name'),
-    sb.from('mi_cannabis_skus').select('*').order('name'),
-    sb.from('mi_cannabis_flavors').select('*').order('name'),
-  ]);
-  const cats=catR.data||[], skus=skuR.data||[], flavors=flavR.data||[];
-  const el=document.getElementById('cannabisFullViewContent');
-  if(!cats.length){ el.innerHTML='<div class="hint" style="padding:24px;">No cannabis items configured yet. Go to Settings &rarr; Cannabis Items to set up categories, SKUs, and flavors.</div>'; return; }
-  el.innerHTML=cats.map(cat=>{
-    const catSkus=skus.filter(s=>s.category_id===cat.id);
-    if(!catSkus.length) return '';
-    return `<div style="margin-bottom:28px;">
-      <h3 style="color:var(--amber);margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid var(--amber);">${escapeHtml(cat.name)}</h3>
-      ${catSkus.map(sku=>{
-        const f=flavors.filter(x=>x.sku_id===sku.id);
-        return `<div style="margin-bottom:18px;">
-          <div style="font-weight:600;margin-bottom:8px;">${escapeHtml(sku.name)} <span class="hint">(${escapeHtml(sku.unit_of_measure)})</span></div>
-          <table class="data" style="margin-bottom:0;"><thead><tr><th>Flavor</th><th>On Hand</th></tr></thead>
-          <tbody>${f.length===0?`<tr><td colspan="2" style="color:var(--dim);">No flavors</td></tr>`:f.map(x=>`<tr><td>${escapeHtml(x.name)}</td><td>${x.on_hand}</td></tr>`).join('')}</tbody></table>
-        </div>`;
-      }).join('')}
-    </div>`;
-  }).join('');
+  const { data, error } = await sb.from('mi_cannabis_items').select('*').order('item_name');
+  const body = document.getElementById('caFullViewBody');
+  if(error){ body.innerHTML = `<tr><td colspan="4">Could not load: ${escapeHtml(error.message)}</td></tr>`; return; }
+  if(!data || data.length===0){ body.innerHTML = `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--dim);">No cannabis items yet — add some under Settings → Cannabis Items.</td></tr>`; return; }
+  body.innerHTML = data.map(i=>`<tr><td style="font-weight:600;">${escapeHtml(i.item_name)}</td><td>${escapeHtml(i.category)}</td><td>${escapeHtml(i.unit_of_measure)}</td><td class="${i.quantity===0?'qty-zero':''}">${i.quantity}</td></tr>`).join('');
 }
 
-
-// ============================================================
-// MANUFACTURING: BATCH ORDERS
-// ============================================================
-let batchOrdersData=[], boCategories=[], boSkus=[], boFlavors=[];
-let currentBatch=null, currentBatchStages=[];
-
-async function loadBatchOrders(){
-  const {data}=await sb.from('mi_batch_orders').select('*, mi_batch_order_stages(*)').order('created_at',{ascending:false});
-  batchOrdersData=data||[]; renderBatchOrdersList();
+// ---------- SETTINGS: CANNABIS ITEMS ----------
+let cannabisItemsData = [];
+let editingCannabisItemId = null;
+function openCreateCannabisItem(){
+  editingCannabisItemId = null;
+  document.getElementById('ciModalTitle').textContent = 'Create Cannabis Item';
+  document.getElementById('ciName').value=''; document.getElementById('ciCategory').selectedIndex = 0; document.getElementById('ciUom').value='g';
+  document.getElementById('ciErr').classList.remove('show');
+  openModal('modalCannabisItem');
 }
-function renderBatchOrdersList(){
-  const q=(document.getElementById('boSearch').value||'').toLowerCase();
-  const sf=document.getElementById('boStatusFilter').value;
-  const el=document.getElementById('batchOrdersList');
-  let rows=batchOrdersData;
-  if(q) rows=rows.filter(b=>(b.batch_name||'').toLowerCase().includes(q)||(b.flavor_name_snapshot||'').toLowerCase().includes(q)||(b.sku_name_snapshot||'').toLowerCase().includes(q));
-  if(sf) rows=rows.filter(b=>b.status===sf);
-  if(!rows.length){ el.innerHTML='<div class="hint" style="padding:32px;text-align:center;">No batch orders yet. Click &ldquo;+ New Batch Order&rdquo; to start your first batch.</div>'; return; }
-  el.innerHTML=rows.map(b=>{
-    const stages=(b.mi_batch_order_stages||[]).sort((a,x)=>a.stage_order-x.stage_order);
-    const total=stages.length, done=stages.filter(s=>s.status==='Completed').length;
-    const pct=total?Math.round(done/total*100):0;
-    return `<div class="card" style="margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div style="font-weight:700;font-size:15px;">${escapeHtml(b.batch_name)}</div>
-          <div class="hint" style="margin-top:3px;">${escapeHtml(b.category_name_snapshot||'')} &rsaquo; ${escapeHtml(b.sku_name_snapshot||'')} &rsaquo; <b>${escapeHtml(b.flavor_name_snapshot||'')}</b></div>
-          <div class="hint">Est. qty: ${b.estimated_quantity||'&mdash;'} &nbsp;&bull;&nbsp; ${new Date(b.created_at).toLocaleDateString()}</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <span style="font-size:12px;padding:3px 12px;border-radius:20px;font-weight:600;background:${b.status==='Completed'?'rgba(106,153,85,.2)':'rgba(196,148,60,.2)'};color:${b.status==='Completed'?'var(--sage)':'var(--amber)'};">${b.status}</span>
-          ${b.status==='In Progress'?`<button class="primary small" onclick="openBatchStageRunner('${b.id}')">Continue &rarr;</button>`:`<button class="ghost small" onclick="openBatchStageRunner('${b.id}')">View</button>`}
-          ${session.role==='admin'?`<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteBatchOrder('${b.id}')">Delete</button>`:''}
-        </div>
-      </div>
-      <div style="margin-top:12px;">
-        <div style="height:5px;border-radius:4px;background:var(--panel2);overflow:hidden;margin-bottom:8px;"><div style="height:100%;width:${pct}%;background:var(--sage);transition:width .4s;"></div></div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;">
-          ${stages.map(s=>`<span style="font-size:11.5px;padding:2px 10px;border-radius:12px;border:1px solid var(--line);background:${s.status==='Completed'?'rgba(106,153,85,.15)':s.status==='In Progress'?'rgba(196,148,60,.15)':'transparent'};color:${s.status==='Completed'?'var(--sage)':s.status==='In Progress'?'var(--amber)':'var(--dim)'};">${escapeHtml(s.stage_name)}</span>`).join('')}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
+function openEditCannabisItem(id){
+  const item = cannabisItemsData.find(i=>i.id===id);
+  if(!item) return;
+  editingCannabisItemId = id;
+  document.getElementById('ciModalTitle').textContent = 'Edit Cannabis Item';
+  document.getElementById('ciName').value = item.item_name;
+  document.getElementById('ciCategory').value = item.category;
+  document.getElementById('ciUom').value = item.unit_of_measure;
+  document.getElementById('ciErr').classList.remove('show');
+  openModal('modalCannabisItem');
 }
-async function openCreateBatchOrder(){
-  document.getElementById('boName').value=''; document.getElementById('boEstQty').value='';
-  document.getElementById('boErr').classList.remove('show'); document.getElementById('boStagesPreview').innerHTML='';
-  const {data}=await sb.from('mi_cannabis_categories').select('*').order('name');
-  boCategories=data||[];
-  document.getElementById('boCategory').innerHTML='<option value="">Select Category</option>'+boCategories.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
-  document.getElementById('boSku').innerHTML='<option value="">Select SKU</option>';
-  document.getElementById('boFlavor').innerHTML='<option value="">Select Flavor</option>';
-  openModal('modalCreateBatchOrder');
+async function submitCannabisItem(){
+  const errEl = document.getElementById('ciErr');
+  const name = document.getElementById('ciName').value.trim();
+  const category = document.getElementById('ciCategory').value;
+  const uom = document.getElementById('ciUom').value;
+  if(!name){ errEl.textContent='Enter an item name.'; errEl.classList.add('show'); return; }
+  const rpc = editingCannabisItemId ? 'mi_update_cannabis_item' : 'mi_create_cannabis_item';
+  const params = editingCannabisItemId
+    ? { p_token: session.token, p_id: editingCannabisItemId, p_item_name: name, p_category: category, p_uom: uom, p_by: session.name }
+    : { p_token: session.token, p_item_name: name, p_category: category, p_uom: uom, p_by: session.name };
+  const { error } = await sb.rpc(rpc, params);
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCannabisItem');
+  await loadCannabisItems();
 }
-async function onBoCategoryChange(){
-  const catId=document.getElementById('boCategory').value;
-  document.getElementById('boSku').innerHTML='<option value="">Select SKU</option>';
-  document.getElementById('boFlavor').innerHTML='<option value="">Select Flavor</option>';
-  document.getElementById('boStagesPreview').innerHTML='';
-  if(!catId) return;
-  const [skuR,stageR]=await Promise.all([
-    sb.from('mi_cannabis_skus').select('*').eq('category_id',catId).order('name'),
-    sb.from('mi_category_stages').select('*, mi_bom_templates(template_name)').eq('category_id',catId).order('stage_order')
-  ]);
-  boSkus=skuR.data||[];
-  document.getElementById('boSku').innerHTML='<option value="">Select SKU</option>'+boSkus.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
-  const stages=stageR.data||[];
-  const preview=document.getElementById('boStagesPreview');
-  if(stages.length){
-    preview.innerHTML=`<div class="hint" style="margin-bottom:6px;font-size:11px;">MANUFACTURING PIPELINE</div><div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">${stages.map((s,i)=>`<span style="background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:12px;">${s.stage_order}. ${escapeHtml(s.stage_name)}${s.mi_bom_templates?' &mdash; '+escapeHtml(s.mi_bom_templates.template_name):' <span style=\"color:var(--rust);font-size:11px;\">(no BOM)</span>'}</span>${i<stages.length-1?'<span style=\"color:var(--dim);\">&#8594;</span>':''}`).join('')}</div>`;
-  } else {
-    preview.innerHTML='<div style="color:var(--rust);font-size:13px;padding:8px 0;">No manufacturing stages defined for this category. Add them under Settings &rarr; Cannabis Items first.</div>';
-  }
+async function deleteCannabisItem(id){
+  if(!confirm('Delete this cannabis item? This cannot be undone.')) return;
+  const { error } = await sb.rpc('mi_delete_cannabis_item', { p_token: session.token, p_id: id, p_by: session.name });
+  if(error){ alert('Could not delete: ' + error.message); return; }
+  await loadCannabisItems();
 }
-async function onBoSkuChange(){
-  const skuId=document.getElementById('boSku').value;
-  document.getElementById('boFlavor').innerHTML='<option value="">Select Flavor</option>';
-  if(!skuId) return;
-  const {data}=await sb.from('mi_cannabis_flavors').select('*').eq('sku_id',skuId).order('name');
-  boFlavors=data||[];
-  document.getElementById('boFlavor').innerHTML='<option value="">Select Flavor</option>'+boFlavors.map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('');
+async function loadCannabisItems(){
+  const { data, error } = await sb.from('mi_cannabis_items').select('*').order('created_at',{ascending:false});
+  if(error){ console.error(error); return; }
+  cannabisItemsData = data || [];
+  renderCannabisItemsList();
 }
-async function submitBatchOrder(){
-  const errEl=document.getElementById('boErr');
-  const catId=document.getElementById('boCategory').value;
-  const skuId=document.getElementById('boSku').value;
-  const flavorId=document.getElementById('boFlavor').value;
-  const estQty=parseFloat(document.getElementById('boEstQty').value)||null;
-  const name=document.getElementById('boName').value.trim();
-  if(!catId||!skuId||!flavorId){ errEl.textContent='Select category, SKU, and flavor.'; errEl.classList.add('show'); return; }
-  const batchName=name||('Batch.'+new Date().toISOString().slice(0,10)+'.'+Math.random().toString(36).slice(2,6));
-  const {data:batchId,error}=await sb.rpc('mi_create_batch_order',{p_token:session.token,p_batch_name:batchName,p_category_id:catId,p_sku_id:skuId,p_flavor_id:flavorId,p_estimated_quantity:estQty,p_by:session.name});
-  if(error){ errEl.textContent=error.message; errEl.classList.add('show'); return; }
-  closeModal('modalCreateBatchOrder');
-  await loadBatchOrders();
-  openBatchStageRunner(batchId);
-}
-async function deleteBatchOrder(id){ if(!confirm('Delete this batch order?')) return; await sb.rpc('mi_delete_batch_order',{p_token:session.token,p_batch_id:id,p_by:session.name}); await loadBatchOrders(); }
-
-// ---- STAGE RUNNER ----
-async function openBatchStageRunner(batchId){
-  switchSection('batch_stage_runner');
-  const [batchR,stagesR]=await Promise.all([
-    sb.from('mi_batch_orders').select('*').eq('id',batchId).maybeSingle(),
-    sb.from('mi_batch_order_stages').select('*').eq('batch_id',batchId).order('stage_order')
-  ]);
-  currentBatch=batchR.data; currentBatchStages=stagesR.data||[];
-  await renderBatchStageRunner();
-}
-async function renderBatchStageRunner(){
-  const el=document.getElementById('batchStageRunnerContent');
-  if(!currentBatch){ el.innerHTML='<div class="hint">Batch not found.</div>'; return; }
-  const stages=currentBatchStages;
-  const activeStage=stages.find(s=>s.status==='In Progress');
-  const completed=stages.filter(s=>s.status==='Completed');
-
-  let html=`<div style="margin-bottom:20px;">
-    <div style="font-size:20px;font-weight:700;">${escapeHtml(currentBatch.batch_name)}</div>
-    <div class="hint" style="margin-top:4px;">${escapeHtml(currentBatch.category_name_snapshot||'')} &rsaquo; ${escapeHtml(currentBatch.sku_name_snapshot||'')} &rsaquo; <b>${escapeHtml(currentBatch.flavor_name_snapshot||'')}</b> &nbsp;&bull;&nbsp; Est. qty: ${currentBatch.estimated_quantity||'&mdash;'}</div>
-  </div>
-  <div style="display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:28px;">
-    ${stages.sort((a,b)=>a.stage_order-b.stage_order).map((s,i)=>`
-    <div style="flex:1;min-width:90px;padding:12px 14px;background:${s.status==='Completed'?'rgba(106,153,85,.15)':s.status==='In Progress'?'rgba(196,148,60,.15)':'transparent'};border-right:${i<stages.length-1?'1px solid var(--line)':'none'};">
-      <div style="font-size:10px;color:var(--dim);margin-bottom:2px;">STAGE ${s.stage_order}</div>
-      <div style="font-weight:600;font-size:13.5px;color:${s.status==='Completed'?'var(--sage)':s.status==='In Progress'?'var(--amber)':'var(--dim)'};">${escapeHtml(s.stage_name)}</div>
-      <div style="font-size:11px;margin-top:3px;color:${s.status==='Completed'?'var(--sage)':s.status==='In Progress'?'var(--amber)':'var(--dim)'};">${s.status==='Completed'?'&#10003; Done':s.status==='In Progress'?'&#x25B6; Active':'Pending'}</div>
-    </div>`).join('')}
-  </div>`;
-
-  if(currentBatch.status==='Completed'){
-    html+=`<div class="card" style="text-align:center;padding:40px;">
-      <div style="font-size:40px;margin-bottom:10px;">&#x2705;</div>
-      <div style="font-size:20px;font-weight:700;color:var(--sage);">Batch Complete!</div>
-      <div class="hint" style="margin-top:6px;">All ${stages.length} stage${stages.length===1?'':'s'} finished for ${escapeHtml(currentBatch.batch_name)}.</div>
-      <button class="ghost" style="margin-top:18px;" onclick="switchSection('batch_orders')">&larr; Back to Batch Orders</button>
-    </div>`;
-    el.innerHTML=html; return;
-  }
-
-  if(activeStage){
-    let bomMaterials=[];
-    if(activeStage.bom_template_id){
-      const {data}=await sb.from('mi_bom_template_materials').select('*').eq('template_id',activeStage.bom_template_id);
-      bomMaterials=data||[];
-    }
-    const estQty=currentBatch.estimated_quantity||1;
-    const cannabisMats=bomMaterials.filter(m=>m.material_type==='cannabis');
-    const ncMats=bomMaterials.filter(m=>m.material_type==='noncannabis');
-    const stageDataAttr=encodeURIComponent(JSON.stringify({cannabis:cannabisMats,noncannabis:ncMats}));
-
-    html+=`<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
-        <div>
-          <div style="font-size:18px;font-weight:700;color:var(--amber);">Stage ${activeStage.stage_order}: ${escapeHtml(activeStage.stage_name)}</div>
-          ${activeStage.bom_template_id?'':'<div style="color:var(--rust);font-size:12px;margin-top:3px;">No BOM Template linked &mdash; you can still complete this stage</div>'}
-        </div>
-      </div>
-      ${bomMaterials.length?`
-      <table class="data" style="margin-bottom:20px;">
-        <thead><tr><th>Material</th><th>Type</th><th>Per Unit</th><th style="color:var(--amber);">Needed (${estQty}x)</th><th>Actual Used</th></tr></thead>
-        <tbody>
-          ${[...cannabisMats.map((m,i)=>`<tr>
-            <td><b>${escapeHtml(m.item_name)}</b></td>
-            <td><span class="hint">cannabis</span></td>
-            <td>${m.quantity||0}</td>
-            <td style="font-weight:600;color:var(--amber);">${+((m.quantity||0)*estQty).toFixed(4)}</td>
-            <td><input type="number" id="au_c_${i}" value="${+((m.quantity||0)*estQty).toFixed(4)}" step="any" style="width:90px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px;"></td>
-          </tr>`), ...ncMats.map((m,i)=>`<tr>
-            <td><b>${escapeHtml(m.item_name)}</b></td>
-            <td><span class="hint">non-cannabis</span></td>
-            <td>${m.quantity||0}</td>
-            <td style="font-weight:600;color:var(--amber);">${+((m.quantity||0)*estQty).toFixed(4)}</td>
-            <td><input type="number" id="au_n_${i}" value="${+((m.quantity||0)*estQty).toFixed(4)}" step="any" style="width:90px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px;"></td>
-          </tr>`)].join('')}
-        </tbody>
-      </table>`:'<div class="hint" style="margin-bottom:20px;">No materials defined for this stage. You can complete it without material tracking.</div>'}
-      <div style="text-align:right;">
-        <button class="primary" onclick="completeActiveStage('${activeStage.id}',${cannabisMats.length},${ncMats.length})">
-          Mark Stage Complete &rarr;
-        </button>
-      </div>
-    </div>`;
-  }
-
-  if(completed.length){
-    html+=`<div style="margin-top:20px;">
-      <div class="hint" style="margin-bottom:10px;font-size:11px;letter-spacing:.06em;">COMPLETED STAGES</div>
-      ${completed.sort((a,b)=>a.stage_order-b.stage_order).map(s=>`
-      <div style="border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:8px;opacity:.8;">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-          <span style="font-weight:600;color:var(--sage);">&#10003; Stage ${s.stage_order}: ${escapeHtml(s.stage_name)}</span>
-          <span class="hint">${s.completed_at?new Date(s.completed_at).toLocaleString():''} &mdash; ${escapeHtml(s.completed_by||'')}</span>
-        </div>
-        ${s.materials_used&&s.materials_used.length?`<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px;">${s.materials_used.map(m=>`<span style="font-size:12px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px 10px;">${escapeHtml(m.item_name)}: <b>${m.actual_used}</b> used</span>`).join('')}</div>`:''}
-      </div>`).join('')}
-    </div>`;
-  }
-
-  el.innerHTML=html;
-}
-async function completeActiveStage(stageId, cCount, nCount){
-  const stage=currentBatchStages.find(s=>s.id===stageId);
-  if(!stage) return;
-  const estQty=currentBatch.estimated_quantity||1;
-  const materials=[];
-  // Get BOM materials to reconstruct item names
-  let bomMats=[];
-  if(stage.bom_template_id){
-    const {data}=await sb.from('mi_bom_template_materials').select('*').eq('template_id',stage.bom_template_id);
-    bomMats=data||[];
-  }
-  const cMats=bomMats.filter(m=>m.material_type==='cannabis');
-  const nMats=bomMats.filter(m=>m.material_type==='noncannabis');
-  cMats.forEach((m,i)=>{
-    const val=parseFloat(document.getElementById('au_c_'+i)?.value)||0;
-    materials.push({item_name:m.item_name,material_type:'cannabis',per_unit:m.quantity||0,needed:+((m.quantity||0)*estQty).toFixed(4),actual_used:val});
-  });
-  nMats.forEach((m,i)=>{
-    const val=parseFloat(document.getElementById('au_n_'+i)?.value)||0;
-    materials.push({item_name:m.item_name,material_type:'noncannabis',per_unit:m.quantity||0,needed:+((m.quantity||0)*estQty).toFixed(4),actual_used:val});
-  });
-  const {error}=await sb.rpc('mi_complete_batch_stage',{p_token:session.token,p_batch_stage_id:stageId,p_materials_used:materials,p_by:session.name});
-  if(error){ alert('Error completing stage: '+error.message); return; }
-  await openBatchStageRunner(currentBatch.id);
+function renderCannabisItemsList(){
+  const q = (document.getElementById('ciSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('ciBody');
+  let rows = cannabisItemsData;
+  if(q) rows = rows.filter(i=> (i.item_name||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q));
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--dim);">No cannabis items yet. Click "+ Create Item" to add one.</td></tr>`; return; }
+  body.innerHTML = rows.map(i=>`<tr>
+    <td style="font-weight:600;">${escapeHtml(i.item_name)}</td>
+    <td>${escapeHtml(i.category)}</td>
+    <td>${escapeHtml(i.unit_of_measure)}</td>
+    <td>
+      <button class="ghost small" onclick="openEditCannabisItem('${i.id}')">Edit</button>
+      ${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteCannabisItem('${i.id}')">Delete</button>` : ''}
+    </td>
+  </tr>`).join('');
 }
 
 // ---------- SETTINGS: BILL OF MATERIALS TEMPLATES ----------
@@ -1492,16 +1381,35 @@ async function deleteBomTemplate(id){
   await loadBomTemplates();
 }
 
-
-
+// ---------- SETTINGS (card grid) ----------
 function renderSettingsGrid(){
-  const items=[
-    {id:'cannabis_items',label:'Cannabis Items',desc:'Categories, SKUs, Flavors & Manufacturing Stages',icon:'&#x1F33F;',built:true},
-    {id:'nc_item',label:'Non-Cannabis Item',desc:'SKUs, Columns, and Flavor inventory',icon:'&#x1F4E6;',built:true},
-    {id:'bom_templates',label:'Bill of Materials',desc:'Material recipes per manufacturing stage',icon:'&#x1F4CB;',built:true},
-    {id:'team_access',label:'Team & Access',desc:'Manage users and roles',icon:'&#x1F465;',built:true},
-  ];
-  document.getElementById('settingsGrid').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;">${items.map(i=>`<div class="settings-card${i.built?'':' disabled'}" onclick="${i.built?`switchSection('${i.id}')`:''}" style="${!i.built?'opacity:.45;cursor:not-allowed;':''}">${i.icon?`<div style="font-size:28px;margin-bottom:8px;">${i.icon}</div>`:''}<div style="font-weight:700;margin-bottom:4px;">${i.label}</div><div class="sc-desc">${i.desc}</div></div>`).join('')}</div>`;
+  const q = (document.getElementById('settingsSearch').value||'').trim().toLowerCase();
+  const el = document.getElementById('settingsGrid');
+  const iconFor = (item) => item.icon || '·';
+  el.innerHTML = SETTINGS_GRID.map(cat=>{
+    const items = cat.items.filter(i=> !q || i.label.toLowerCase().includes(q));
+    if(items.length===0) return '';
+    return `<div class="settings-category">${escapeHtml(cat.category)}</div>
+      <div class="settings-grid">${items.map(i=>`
+        <div class="settings-card ${i.built?'':'disabled'}" onclick="${i.built?`switchSection('${i.id}')`:''}">
+          <div class="sc-icon">${iconFor(i)}</div>
+          <div>
+            <div class="sc-title">${escapeHtml(i.label)}</div>
+            <div class="sc-desc">${escapeHtml(i.desc)}</div>
+          </div>
+        </div>`).join('')}</div>`;
+  }).join('') || `<div class="empty-state">No settings match "${escapeHtml(q)}".</div>`;
+}
+
+// ---------- SHARED SKU DATA ----------
+let skusData = [];
+async function fetchSkus(){
+  const { data, error } = await sb.from('mi_nc_skus').select('*').order('name');
+  if(!error) skusData = data || [];
+}
+function populateSkuSelect(selectId, includeBlank){
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = (includeBlank?'<option value="">Select a SKU</option>':'') + skusData.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
 }
 
 // ---------- SETTINGS: NON-CANNABIS ITEM (SKU / column / flavor builder) ----------
@@ -1667,7 +1575,6 @@ async function deleteColumn(columnId){
   renderSkuBuilder();
 }
 
-
 // ---------- FULL VIEW (spreadsheet) ----------
 async function loadFullView(){
   await fetchSkus();
@@ -1752,7 +1659,6 @@ async function loadAdjustmentLog(){
   </div>`).join('');
 }
 
-
 // ---------- TEAM & ACCESS ----------
 async function loadTeamAccess(){
   const { data, error } = await sb.rpc('mi_list_users', { p_token: session.token });
@@ -1772,7 +1678,8 @@ async function toggleUserRole(userId, currentRole){
   await loadTeamAccess();
 }
 
-checkSession();
+loadSession();
+if(session) enterApp();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
