@@ -1773,19 +1773,13 @@ async function toggleUserRole(userId, currentRole){
   await loadTeamAccess();
 }
 
-loadSession();
-if(session) enterApp();
+checkSession();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('./sw.js').catch(e=>console.error('SW registration failed', e));
   });
 }
-</script>
-</body>
-</html>
-
-checkSession();
 </script>
 </body>
 </html>
