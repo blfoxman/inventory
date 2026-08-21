@@ -275,7 +275,7 @@
         </div>
         <div id="bomUploadStatus" class="hint" style="margin-bottom:10px;"></div>
         <table class="data">
-          <thead><tr><th>Template Name</th><th>Output Item</th><th>Materials</th><th></th></tr></thead>
+          <thead><tr><th>Template Name</th><th>Category</th><th>Output Item</th><th>Materials</th><th></th></tr></thead>
           <tbody id="bomTemplatesBody"></tbody>
         </table>
       </div>
@@ -359,6 +359,7 @@
   <div class="card">
     <h3>Output Items</h3>
     <div class="field"><label>Item</label><div id="bomOutputItemAc"></div></div>
+    <div class="field"><label>Category</label><select id="bomTplCategory"></select></div>
   </div>
 
   <div class="card">
@@ -1292,8 +1293,9 @@ function openCreateBomTemplate(){
   document.getElementById('bomTplName').value='';
   document.getElementById('bomCostCategory').value='';
   document.getElementById('bomTplErr').classList.remove('show');
-  fetchBomMaterialSources().then(()=>{
+  Promise.all([fetchBomMaterialSources(), fetchCategories()]).then(()=>{
     bomOutputItemAc = makeAutocomplete('bomOutputItemAc', bomCannabisItemsCache.map(i=>({value:i.id, label:i.item_name})), ()=>{});
+    populateCategorySelect('bomTplCategory', true);
     bomCannabisRows = [{itemName:'',quantity:''}];
     bomNonCannabisRows = [{itemName:'',quantity:''}];
     renderBomMaterialRows('cannabis');
@@ -1309,6 +1311,9 @@ async function openEditBomTemplate(templateId){
   document.getElementById('bomCostCategory').value = tpl.cost_category || '';
   document.getElementById('bomTplErr').classList.remove('show');
   await fetchBomMaterialSources();
+  await fetchCategories();
+  populateCategorySelect('bomTplCategory', true);
+  document.getElementById('bomTplCategory').value = tpl.category_id || '';
   bomOutputItemAc = makeAutocomplete('bomOutputItemAc', bomCannabisItemsCache.map(i=>({value:i.id, label:i.item_name})), ()=>{}, tpl.output_item_id);
   const { data: materials } = await sb.from('mi_bom_template_materials').select('*').eq('template_id', templateId);
   bomCannabisRows = (materials||[]).filter(m=>m.material_type==='cannabis').map(m=>({itemName:m.item_name, quantity:m.quantity||''}));
@@ -1356,6 +1361,7 @@ async function submitBomTemplate(){
   const rpc = editingBomTemplateId ? 'mi_update_bom_template' : 'mi_create_bom_template';
   const params = {
     p_token: session.token, p_template_name: name, p_output_item_id: outputId || null, p_output_item_name: outputName,
+    p_category_id: document.getElementById('bomTplCategory').value || null,
     p_cost_category: document.getElementById('bomCostCategory').value.trim(),
     p_cannabis_materials: cannabisMaterials, p_noncannabis_materials: noncannabisMaterials, p_by: session.name
   };
@@ -1368,6 +1374,7 @@ async function submitBomTemplate(){
 }
 let bomTemplatesData = [];
 async function loadBomTemplates(){
+  await fetchCategories();
   const [tplR, matR] = await Promise.all([
     sb.from('mi_bom_templates').select('*').order('created_at',{ascending:false}),
     sb.from('mi_bom_template_materials').select('*')
@@ -1382,10 +1389,12 @@ function renderBomTemplatesList(){
   const q = (document.getElementById('bomSearch').value||'').trim().toLowerCase();
   const body = document.getElementById('bomTemplatesBody');
   let rows = bomTemplatesData;
+  const catName = (id) => (categoriesData.find(c=>c.id===id)||{}).name || '—';
   if(q) rows = rows.filter(t=> (t.template_name||'').toLowerCase().includes(q));
-  if(rows.length===0){ body.innerHTML = `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--dim);">No templates yet. Click "+ Create Template" to add one.</td></tr>`; return; }
+  if(rows.length===0){ body.innerHTML = `<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--dim);">No templates yet. Click "+ Create Template" to add one.</td></tr>`; return; }
   body.innerHTML = rows.map(t=>`<tr>
     <td style="font-weight:600;">${escapeHtml(t.template_name)}</td>
+    <td>${escapeHtml(catName(t.category_id))}</td>
     <td>${escapeHtml(t.output_item_name||'—')}</td>
     <td>${t.materialCount} item(s)</td>
     <td>
@@ -1536,7 +1545,6 @@ async function renderSkuBuilder(){
   if(!skuId){ body.innerHTML = `<div class="empty-state">Create a SKU to get started.</div>`; return; }
   const sku = skusData.find(s=>s.id===skuId);
   await fetchCategories();
-  const catName = (sku && sku.category_id) ? ((categoriesData.find(c=>c.id===sku.category_id)||{}).name || '—') : '—';
   const [colsR, flavR] = await Promise.all([
     sb.from('mi_nc_columns').select('*').eq('sku_id', skuId).order('display_order'),
     sb.from('mi_nc_flavors').select('*').eq('sku_id', skuId).order('name')
@@ -1546,10 +1554,11 @@ async function renderSkuBuilder(){
   body.innerHTML = `
     <div class="card">
       <h3>SKU</h3>
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div>
-          <div style="font-weight:600;">${escapeHtml(sku ? sku.name : '')}</div>
-          <div class="hint">Category: ${escapeHtml(catName)}</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;">
+        <div style="font-weight:600;">${escapeHtml(sku ? sku.name : '')}</div>
+        <div class="field" style="flex:1;margin-bottom:0;max-width:260px;">
+          <label>Category</label>
+          <select id="skuBuilderCategory" onchange="updateSkuCategory('${skuId}', this.value)"></select>
         </div>
         <div style="display:flex;gap:8px;">
           <button class="ghost small" onclick="openRenameSku('${skuId}')">Rename</button>
@@ -1583,6 +1592,13 @@ async function renderSkuBuilder(){
       <button class="ghost small" style="margin-top:10px;" onclick="openAddFlavor('${skuId}')">+ Add Flavor</button>
     </div>
   `;
+  populateCategorySelect('skuBuilderCategory', true);
+  document.getElementById('skuBuilderCategory').value = (sku && sku.category_id) ? sku.category_id : '';
+}
+async function updateSkuCategory(skuId, categoryId){
+  const { error } = await sb.rpc('mi_nc_set_sku_category', { p_token: session.token, p_sku_id: skuId, p_category_id: categoryId || null, p_by: session.name });
+  if(error){ alert('Could not update category: ' + error.message); return; }
+  await fetchSkus();
 }
 let addColumnSkuId = null;
 function openAddColumn(skuId){ addColumnSkuId = skuId; document.getElementById('colName').value=''; document.getElementById('colErr').classList.remove('show'); openModal('modalAddColumn'); }
