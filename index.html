@@ -1435,15 +1435,20 @@ let categoriesData = [];
 let editingCategoryId = null;
 async function fetchCategories(){
   const { data, error } = await sb.from('mi_categories').select('*').order('name');
-  if(!error) categoriesData = data || [];
+  if(error){ console.error('fetchCategories failed:', error); categoriesData = []; return; }
+  categoriesData = data || [];
 }
 function populateCategorySelect(selectId, includeBlank){
   const sel = document.getElementById(selectId);
   if(!sel) return;
   sel.innerHTML = (includeBlank?'<option value="">Select a category</option>':'') + categoriesData.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
 }
+let categoriesLoadError = false;
 async function loadCategories(){
-  await fetchCategories();
+  const { data, error } = await sb.from('mi_categories').select('*').order('name');
+  categoriesLoadError = !!error;
+  if(error){ console.error('loadCategories failed:', error); categoriesData = []; }
+  else categoriesData = data || [];
   renderCategoriesList();
 }
 function renderCategoriesList(){
@@ -1451,7 +1456,13 @@ function renderCategoriesList(){
   const body = document.getElementById('catBody');
   let rows = categoriesData;
   if(q) rows = rows.filter(c=> (c.name||'').toLowerCase().includes(q));
-  body.innerHTML = rows.length===0 ? `<tr><td colspan="2" class="empty-state">No categories yet.</td></tr>` : rows.map(c=>`
+  if(rows.length===0){
+    body.innerHTML = categoriesLoadError
+      ? `<tr><td colspan="2" class="empty-state" style="color:var(--rust);">Could not load categories — check console for the error (likely a permissions/RLS issue).</td></tr>`
+      : `<tr><td colspan="2" class="empty-state">No categories yet.</td></tr>`;
+    return;
+  }
+  body.innerHTML = rows.map(c=>`
     <tr>
       <td>${escapeHtml(c.name)}</td>
       <td style="text-align:right;">
