@@ -214,6 +214,21 @@
         <div id="skuBuilderBody"></div>
       </div>
 
+      <!-- ---------- SETTINGS: CATEGORIES ---------- -->
+      <div id="categoriesView" style="display:none;">
+        <button class="ghost small" style="margin-bottom:12px;" onclick="switchSection('settings')">← Back to Settings</button>
+        <div class="toolbar-row">
+          <input id="catSearch" placeholder="Search categories" oninput="renderCategoriesList()">
+          <div style="flex:1;"></div>
+          <button class="primary" onclick="openCreateCategory()">+ Create Category</button>
+        </div>
+        <div class="hint" style="margin-bottom:10px;">Shared by both Cannabis Items and Non-Cannabis SKUs. Any item assigned to a category will show up under it.</div>
+        <table class="data">
+          <thead><tr><th>Category Name</th><th></th></tr></thead>
+          <tbody id="catBody"></tbody>
+        </table>
+      </div>
+
       <!-- ---------- SETTINGS (card grid) ---------- -->
       <div id="settingsView" style="display:none;">
         <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
@@ -271,8 +286,16 @@
 <div class="overlay" id="modalCreateSku"><div class="modal">
   <h3>Create SKU</h3>
   <div class="field"><label>SKU Name</label><input id="skuName" placeholder="e.g. 2G AIO Disposable"></div>
+  <div class="field"><label>Category</label><select id="skuCategory"></select></div>
   <div class="err" id="skuErr"></div>
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCreateSku')">Cancel</button><button class="primary" onclick="submitCreateSku()">Create</button></div>
+</div></div>
+
+<div class="overlay" id="modalCategory"><div class="modal">
+  <h3 id="catModalTitle">Create Category</h3>
+  <div class="field"><label>Category Name</label><input id="catName" placeholder="e.g. Vape/Cartridges"></div>
+  <div class="err" id="catErr"></div>
+  <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCategory')">Cancel</button><button class="primary" onclick="submitCategory()">Save</button></div>
 </div></div>
 
 <div class="overlay" id="modalAddColumn"><div class="modal">
@@ -362,18 +385,7 @@
 <div class="overlay" id="modalCannabisItem"><div class="modal">
   <h3 id="ciModalTitle">Create Cannabis Item</h3>
   <div class="field"><label>Item Name</label><input id="ciName"></div>
-  <div class="field"><label>Category</label><select id="ciCategory">
-    <option>Concentrate</option>
-    <option>Infused Preroll</option>
-    <option>Infused Edible</option>
-    <option>Raw Edible</option>
-    <option>Infused Flower</option>
-    <option>Vape/Cartridges</option>
-    <option>Flower/Buds</option>
-    <option>Shake/Trim</option>
-    <option>Infused Non-Edible</option>
-    <option>Raw Preroll</option>
-  </select></div>
+  <div class="field"><label>Category</label><select id="ciCategory"></select></div>
   <div class="field"><label>Unit of Measure</label><select id="ciUom"><option value="g">g (Grams)</option><option value="ea">ea (Each)</option></select></div>
   <div class="err" id="ciErr"></div>
   <div class="modal-actions"><button class="ghost" onclick="closeModal('modalCannabisItem')">Cancel</button><button class="primary" onclick="submitCannabisItem()">Save</button></div>
@@ -413,6 +425,7 @@ const SIDEBAR_SECTIONS = [
 
 const SETTINGS_GRID = [
   {category:'Facility Setup', items:[
+    {id:'categories', label:'Categories', desc:'Shared categories for cannabis and non-cannabis items', icon:'🏷️', built:true},
     {id:'nc_item', label:'Non-Cannabis Item', desc:'SKUs, columns, and flavors', icon:'📦', built:true},
     {id:'cannabis_items', label:'Cannabis Items', desc:'Item name, category, unit of measure', icon:'🌿', built:true},
     {id:'bom_templates', label:'Bill of Materials Templates', desc:'Output item + cannabis/non-cannabis materials', icon:'📄', built:true},
@@ -866,16 +879,18 @@ function switchSection(id){
   const node = findNodeById(SIDEBAR_SECTIONS, id);
   let label = node ? node.label : id;
   if(id==='team_access') label = 'Team & Access';
+  if(id==='categories') label = 'Categories';
   if(id==='nc_item') label = 'Non-Cannabis Item';
   if(id==='cannabis_items') label = 'Cannabis Items';
   if(id==='bom_templates') label = 'Bill of Materials Templates';
   if(id==='cannabis_adjustment') label = 'Adjustment';
   if(id==='cannabis_fullview') label = 'Cannabis Full View';
   document.getElementById('pageTitle').textContent = label;
-  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView','cannabisItemsView','bomTemplatesView','cannabisAdjustmentView','cannabisFullViewView','productionBatchesView'].forEach(v=>document.getElementById(v).style.display='none');
+  ['adjustmentView','fullViewView','ncItemBuilderView','teamAccessView','settingsView','cannabisItemsView','bomTemplatesView','cannabisAdjustmentView','cannabisFullViewView','productionBatchesView','categoriesView'].forEach(v=>document.getElementById(v).style.display='none');
   if(id==='adjustment'){ document.getElementById('adjustmentView').style.display='block'; loadAdjustmentView(); }
   if(id==='fullview'){ document.getElementById('fullViewView').style.display='block'; loadFullView(); }
   if(id==='settings'){ document.getElementById('settingsView').style.display='block'; renderSettingsGrid(); }
+  if(id==='categories'){ document.getElementById('categoriesView').style.display='block'; loadCategories(); }
   if(id==='nc_item'){ document.getElementById('ncItemBuilderView').style.display='block'; loadSkuBuilderView(); }
   if(id==='team_access'){ document.getElementById('teamAccessView').style.display='block'; loadTeamAccess(); }
   if(id==='cannabis_items'){ document.getElementById('cannabisItemsView').style.display='block'; loadCannabisItems(); }
@@ -1180,20 +1195,22 @@ async function loadCannabisFullView(){
 // ---------- SETTINGS: CANNABIS ITEMS ----------
 let cannabisItemsData = [];
 let editingCannabisItemId = null;
-function openCreateCannabisItem(){
+async function openCreateCannabisItem(){
   editingCannabisItemId = null;
   document.getElementById('ciModalTitle').textContent = 'Create Cannabis Item';
+  await fetchCategories(); populateCategorySelect('ciCategory', true);
   document.getElementById('ciName').value=''; document.getElementById('ciCategory').selectedIndex = 0; document.getElementById('ciUom').value='g';
   document.getElementById('ciErr').classList.remove('show');
   openModal('modalCannabisItem');
 }
-function openEditCannabisItem(id){
+async function openEditCannabisItem(id){
   const item = cannabisItemsData.find(i=>i.id===id);
   if(!item) return;
   editingCannabisItemId = id;
   document.getElementById('ciModalTitle').textContent = 'Edit Cannabis Item';
+  await fetchCategories(); populateCategorySelect('ciCategory', true);
   document.getElementById('ciName').value = item.item_name;
-  document.getElementById('ciCategory').value = item.category;
+  document.getElementById('ciCategory').value = item.category_id || '';
   document.getElementById('ciUom').value = item.unit_of_measure;
   document.getElementById('ciErr').classList.remove('show');
   openModal('modalCannabisItem');
@@ -1201,13 +1218,14 @@ function openEditCannabisItem(id){
 async function submitCannabisItem(){
   const errEl = document.getElementById('ciErr');
   const name = document.getElementById('ciName').value.trim();
-  const category = document.getElementById('ciCategory').value;
+  const categoryId = document.getElementById('ciCategory').value;
   const uom = document.getElementById('ciUom').value;
   if(!name){ errEl.textContent='Enter an item name.'; errEl.classList.add('show'); return; }
+  if(!categoryId){ errEl.textContent='Select a category.'; errEl.classList.add('show'); return; }
   const rpc = editingCannabisItemId ? 'mi_update_cannabis_item' : 'mi_create_cannabis_item';
   const params = editingCannabisItemId
-    ? { p_token: session.token, p_id: editingCannabisItemId, p_item_name: name, p_category: category, p_uom: uom, p_by: session.name }
-    : { p_token: session.token, p_item_name: name, p_category: category, p_uom: uom, p_by: session.name };
+    ? { p_token: session.token, p_id: editingCannabisItemId, p_item_name: name, p_category_id: categoryId, p_uom: uom, p_by: session.name }
+    : { p_token: session.token, p_item_name: name, p_category_id: categoryId, p_uom: uom, p_by: session.name };
   const { error } = await sb.rpc(rpc, params);
   if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
@@ -1221,6 +1239,7 @@ async function deleteCannabisItem(id){
   await loadCannabisItems();
 }
 async function loadCannabisItems(){
+  await fetchCategories();
   const { data, error } = await sb.from('mi_cannabis_items').select('*').order('created_at',{ascending:false});
   if(error){ console.error(error); return; }
   cannabisItemsData = data || [];
@@ -1230,11 +1249,12 @@ function renderCannabisItemsList(){
   const q = (document.getElementById('ciSearch').value||'').trim().toLowerCase();
   const body = document.getElementById('ciBody');
   let rows = cannabisItemsData;
-  if(q) rows = rows.filter(i=> (i.item_name||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q));
+  const catName = (id) => (categoriesData.find(c=>c.id===id)||{}).name || '—';
+  if(q) rows = rows.filter(i=> (i.item_name||'').toLowerCase().includes(q) || catName(i.category_id).toLowerCase().includes(q));
   if(rows.length===0){ body.innerHTML = `<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--dim);">No cannabis items yet. Click "+ Create Item" to add one.</td></tr>`; return; }
   body.innerHTML = rows.map(i=>`<tr>
     <td style="font-weight:600;">${escapeHtml(i.item_name)}</td>
-    <td>${escapeHtml(i.category)}</td>
+    <td>${escapeHtml(catName(i.category_id))}</td>
     <td>${escapeHtml(i.unit_of_measure)}</td>
     <td>
       <button class="ghost small" onclick="openEditCannabisItem('${i.id}')">Edit</button>
@@ -1401,6 +1421,73 @@ function renderSettingsGrid(){
   }).join('') || `<div class="empty-state">No settings match "${escapeHtml(q)}".</div>`;
 }
 
+// ---------- SHARED CATEGORIES ----------
+let categoriesData = [];
+let editingCategoryId = null;
+async function fetchCategories(){
+  const { data, error } = await sb.from('mi_categories').select('*').order('name');
+  if(!error) categoriesData = data || [];
+}
+function populateCategorySelect(selectId, includeBlank){
+  const sel = document.getElementById(selectId);
+  if(!sel) return;
+  sel.innerHTML = (includeBlank?'<option value="">Select a category</option>':'') + categoriesData.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+}
+async function loadCategories(){
+  await fetchCategories();
+  renderCategoriesList();
+}
+function renderCategoriesList(){
+  const q = (document.getElementById('catSearch').value||'').trim().toLowerCase();
+  const body = document.getElementById('catBody');
+  let rows = categoriesData;
+  if(q) rows = rows.filter(c=> (c.name||'').toLowerCase().includes(q));
+  body.innerHTML = rows.length===0 ? `<tr><td colspan="2" class="empty-state">No categories yet.</td></tr>` : rows.map(c=>`
+    <tr>
+      <td>${escapeHtml(c.name)}</td>
+      <td style="text-align:right;">
+        <button class="ghost small" onclick="openEditCategory('${c.id}')">Rename</button>
+        ${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteCategory('${c.id}')">Delete</button>` : ''}
+      </td>
+    </tr>`).join('');
+}
+function openCreateCategory(){
+  editingCategoryId = null;
+  document.getElementById('catModalTitle').textContent = 'Create Category';
+  document.getElementById('catName').value='';
+  document.getElementById('catErr').classList.remove('show');
+  openModal('modalCategory');
+}
+function openEditCategory(id){
+  const cat = categoriesData.find(c=>c.id===id);
+  if(!cat) return;
+  editingCategoryId = id;
+  document.getElementById('catModalTitle').textContent = 'Rename Category';
+  document.getElementById('catName').value = cat.name;
+  document.getElementById('catErr').classList.remove('show');
+  openModal('modalCategory');
+}
+async function submitCategory(){
+  const errEl = document.getElementById('catErr');
+  const name = document.getElementById('catName').value.trim();
+  if(!name){ errEl.textContent='Enter a category name.'; errEl.classList.add('show'); return; }
+  const rpc = editingCategoryId ? 'mi_update_category' : 'mi_create_category';
+  const params = editingCategoryId
+    ? { p_token: session.token, p_id: editingCategoryId, p_name: name, p_by: session.name }
+    : { p_token: session.token, p_name: name, p_by: session.name };
+  const { error } = await sb.rpc(rpc, params);
+  if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  errEl.classList.remove('show');
+  closeModal('modalCategory');
+  await loadCategories();
+}
+async function deleteCategory(id){
+  if(!confirm('Delete this category? Items currently assigned to it will need to be re-categorized first.')) return;
+  const { error } = await sb.rpc('mi_delete_category', { p_token: session.token, p_id: id, p_by: session.name });
+  if(error){ alert('Could not delete: ' + error.message); return; }
+  await loadCategories();
+}
+
 // ---------- SHARED SKU DATA ----------
 let skusData = [];
 async function fetchSkus(){
@@ -1419,16 +1506,21 @@ async function loadSkuBuilderView(){
   if(skusData.length>0){ document.getElementById('ncbSku').value = skusData[0].id; }
   renderSkuBuilder();
 }
-function openCreateSku(){
+async function openCreateSku(){
+  await fetchCategories(); populateCategorySelect('skuCategory', true);
   document.getElementById('skuName').value=''; document.getElementById('skuErr').classList.remove('show');
   openModal('modalCreateSku');
 }
 async function submitCreateSku(){
   const errEl = document.getElementById('skuErr');
   const name = document.getElementById('skuName').value.trim();
+  const categoryId = document.getElementById('skuCategory').value;
   if(!name){ errEl.textContent='Enter a SKU name.'; errEl.classList.add('show'); return; }
+  if(!categoryId){ errEl.textContent='Select a category.'; errEl.classList.add('show'); return; }
   const { data, error } = await sb.rpc('mi_nc_create_sku', { p_token: session.token, p_name: name, p_by: session.name });
   if(error){ errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  const { error: catErr } = await sb.rpc('mi_nc_set_sku_category', { p_token: session.token, p_sku_id: data, p_category_id: categoryId, p_by: session.name });
+  if(catErr){ errEl.textContent = catErr.message; errEl.classList.add('show'); return; }
   errEl.classList.remove('show');
   closeModal('modalCreateSku');
   await fetchSkus();
@@ -1443,6 +1535,8 @@ async function renderSkuBuilder(){
   const body = document.getElementById('skuBuilderBody');
   if(!skuId){ body.innerHTML = `<div class="empty-state">Create a SKU to get started.</div>`; return; }
   const sku = skusData.find(s=>s.id===skuId);
+  await fetchCategories();
+  const catName = (sku && sku.category_id) ? ((categoriesData.find(c=>c.id===sku.category_id)||{}).name || '—') : '—';
   const [colsR, flavR] = await Promise.all([
     sb.from('mi_nc_columns').select('*').eq('sku_id', skuId).order('display_order'),
     sb.from('mi_nc_flavors').select('*').eq('sku_id', skuId).order('name')
@@ -1453,7 +1547,10 @@ async function renderSkuBuilder(){
     <div class="card">
       <h3>SKU</h3>
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-weight:600;">${escapeHtml(sku ? sku.name : '')}</div>
+        <div>
+          <div style="font-weight:600;">${escapeHtml(sku ? sku.name : '')}</div>
+          <div class="hint">Category: ${escapeHtml(catName)}</div>
+        </div>
         <div style="display:flex;gap:8px;">
           <button class="ghost small" onclick="openRenameSku('${skuId}')">Rename</button>
           ${session.role==='admin' ? `<button class="ghost small" style="border-color:var(--rust);color:var(--rust);" onclick="deleteSku('${skuId}')">Delete SKU</button>` : ''}
